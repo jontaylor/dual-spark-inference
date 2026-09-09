@@ -1,6 +1,6 @@
 # Official vLLM 0.29.0 migration — 2026-09-09
 
-Status: baseline rejected for inconsistent prefix reuse; PR bundle under serving validation.
+Status: baseline rejected for inconsistent prefix reuse; PR bundle plus replay-retention correction under serving validation.
 
 ## Comparison design
 
@@ -82,7 +82,30 @@ the suite before throughput/full-context tests. This candidate is not selected
 for deployment. We proceeded to the prepared PR bundle rather than spending a
 full capacity run on a candidate that had already failed a required check.
 
-PR-bundle serving and throughput measurements will be recorded when complete.
+The initial PR bundle reproduced the same zero-hit identical replay (the
+follow-up again hit 9600). That narrowed the problem to sparse recurrent-state
+retention, rather than the group annotation alone. With our coarse 1600-token
+lookup, scheduling wrote the checkpoint at 9600 for a 12K prompt, while
+semantic-only retention selected 11200. The recurrent state needed by a replay
+was consequently discarded. This also exposed a gap in the earlier CPU fixture:
+it exercised dense retention, whereas production explicitly uses interval zero.
+
+The follow-up fix shares the block-aligned replay-boundary calculation between
+scheduling and Mamba retention. It applies the prompt-end exclusion before the
+speculative tail rewind, and gives the Mamba manager the engine's speculative
+mode even though that group itself does not drop a block. It preserves sparse
+retention. This addresses the same producer/consumer-boundary principle as
+#52244, but does not import that PR's broader fine-grained partial-tail changes.
+Fine-grained lookup is outside the selected deployment and is unchanged.
+
+The unmodified PR image fails the new 12K CPU reproducer (0 hits, expected 9600).
+The corrected image passes 46 cache cases, including exact and adjacent block
+boundaries, tiny prompts, 65K/261K, speculation off/on, and C4 with two batches
+in flight. At C4/MTP3/261120 prompt tokens it hits 259200 per replay and peaks at
+772 occupied blocks out of 995 usable. All other packaged CPU checks pass.
+The GPU kernels and weights are unchanged by this correction.
+
+Corrected-bundle serving and throughput measurements will be recorded when complete.
 
 ## Rollback
 

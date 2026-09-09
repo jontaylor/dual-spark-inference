@@ -5,10 +5,16 @@ Reproducible deployment tooling for two DGX Spark / GB10 machines, derived from
 The inference changes live in the pinned
 [vllm-gb10](https://github.com/jontaylor/vllm-gb10) `server` submodule.
 
-This candidate branch uses official vLLM **0.29.0**, with the corresponding
-ARM64 release image and selected Mia/GB10 changes. The first baseline failed prefix reuse; the PR bundle is under
-serving validation. The validated earlier deployment remains on `main` and the
+This validated branch uses official vLLM **0.29.0**, with the matching ARM64
+release image, selected Mia/GB10 changes, three reviewed PRs and a recurrent
+replay-retention correction. It passes prefix, throughput and C4 × 262K capacity
+checks. Release: `gb10-v0.29.0-2026-09-09`. The earlier deployment remains on `main` and the
 `gb10-2026-09-09` tag. See [the migration record](docs/v029-migration.md).
+
+Short-context decode throughput is broadly unchanged. In this comparison,
+full-context C4 decode was 7.3% slower cold and 4.9% slower warm. Both passed
+without preemptions; warm replay reused 259,200 tokens per request. Individual
+PR performance effects have not been isolated.
 
 ## Selected configuration
 
@@ -35,10 +41,10 @@ prefill chunks respect the 1,600-token state alignment; C1 typically receives
 Optimisation flags enable code from the server submodule; stock vLLM with the
 same settings does not reproduce this deployment.
 
-On the earlier deployment, the recurrent-cache fix allowed cold and warm
-full-context C4 to complete without preemption. These are reference results,
-not measurements of this candidate. See
-[the capacity and throughput report](docs/cache-fix-2026-09-09.md).
+Both this deployment and the earlier recurrent-cache fix passed cold and warm
+full-context C4 without preemption. The final migration results are in
+[the migration report](docs/v029-migration.md); earlier reference measurements
+are in [the cache-fix report](docs/cache-fix-2026-09-09.md).
 The original end-to-end repair workload has not been rerun after these changes.
 
 ## Repository responsibilities

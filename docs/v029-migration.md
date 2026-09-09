@@ -1,6 +1,6 @@
 # Official vLLM 0.29.0 migration — 2026-09-09
 
-Status: baseline rejected for inconsistent prefix reuse; PR bundle plus replay-retention correction under serving validation.
+Status: validated and selected. Official 0.29.0 + retained Mia/GB10 work + the three-PR bundle + the replay-retention correction is serving.
 
 ## Comparison design
 
@@ -100,12 +100,64 @@ Fine-grained lookup is outside the selected deployment and is unchanged.
 
 The unmodified PR image fails the new 12K CPU reproducer (0 hits, expected 9600).
 The corrected image passes 46 cache cases, including exact and adjacent block
-boundaries, tiny prompts, 65K/261K, speculation off/on, and C4 with two batches
-in flight. At C4/MTP3/261120 prompt tokens it hits 259200 per replay and peaks at
+boundaries, tiny prompts, 65K/261K, speculation off/on, and C4 with two prior batches pending (three including the current step). At C4/MTP3/261120 prompt tokens it hits 259200 per replay and peaks at
 772 occupied blocks out of 995 usable. All other packaged CPU checks pass.
 The GPU kernels and weights are unchanged by this correction.
 
-Corrected-bundle serving and throughput measurements will be recorded when complete.
+The corrected bundle passes the full serving suite: API/auth/tools/streaming,
+all cold/warm/follow-up comparisons at 12K and 65K, matched C1/C2/C4 throughput,
+and cold plus warm C4 at 262144 total tokens per request. Warm hits are 9600 at
+12K and 62400 at 65K. All six output comparisons return identical text; mean
+absolute token-logprob differences are below 0.008, with a maximum below 0.333.
+These are bounded correctness checks, not an end-to-end repair-quality result.
+
+## Measured results
+
+Each throughput mean uses the same ~12K source fixture, two engineering tasks,
+two repetitions per task and 1024 generated tokens per request. Decode is timed
+only while every request is producing output. Output trajectories can differ
+between releases. The small differences do not establish a throughput gain.
+
+| Concurrency | Previous validated build | Selected 0.29 build | Change | Draft acceptance |
+|---|---:|---:|---:|---:|
+| C1 | 48.47 | 47.43 | -2.15% | 62.7% |
+| C2 | 75.85 | 76.08 | +0.31% | 61.8% |
+| C4 | 115.71 | 115.27 | -0.38% | 63.1% |
+
+Throughput is aggregate generated tokens/s. No throughput run preempted.
+
+| Full-context C4 | Elapsed s | Median TTFT s | Decode tok/s | Peak sampled blocks | Preemptions |
+|---|---:|---:|---:|---:|---:|
+| Cold | 523.03 | 483.12 | 103.86 | 748/1042 | 0 |
+| Warm replay | 44.27 | 4.24 | 108.45 | 728/1042 | 0 |
+
+All eight full-context requests generated 1024 tokens and retrieved their embedded markers.
+Minimum sampled MemAvailable during serving tests was 11.66 GiB on rank 0 and 16.71 GiB on rank 1.
+The selected startup reported 1,446,646 logical KV tokens and 1042 usable physical blocks. Startup profiling varied across attempts; this is an observed capacity, not a fixed guarantee for every restart. C4 remains the configured limit.
+
+The earlier validated C4 full-context run took 511.89 s cold and 41.94 s warm,
+with 112.04/114.09 decode tok/s. Full-context decode is therefore **7.3% slower
+cold and 4.9% slower warm** in this comparison. The cause has not been isolated.
+The new run uses the same corpus and settings but independently generated marker
+values; this is a workload comparison, not bitwise-identical output timing.
+
+Warm replay reused 1,036,800 tokens total (259,200 per request), with a median
+TTFT of 4.239 s versus 483.120 s cold. Both full-context decode intervals held
+724 blocks throughout, with zero off-table blocks. Draft acceptance was about
+63.3%, with a mean acceptance length of 2.897. The observations support successful
+cache reuse and bounded allocation on this workload; they do not establish an
+end-to-end quality or throughput improvement over the earlier deployment.
+
+The original repair workload has not been rerun. Individual PR speed gains were not isolated; the release/PR combination was validated as a bundle.
+
+## Selected source and images
+
+Runtime source: `7e68a2093a416a9269380c050e79bdfcf5d5029d`. The exact 35-module manifest and aggregate results are preserved in the server provenance directory and `docs/v029-results.json`.
+
+- Head image: `sha256:e49126e6768d0ef0edb39208080569af9408565d11afd55595aa7b33ff359ad1`
+- Worker image: `sha256:230fdcc1d396ce64f9167c9208476b96baaa9f6832a837d4595b0a3a9cbff67d`
+
+Images were built independently from the same source and pinned official ARM64 base; runtime Python module hashes match on both nodes. The source/deployment release tag is `gb10-v0.29.0-2026-09-09`. The original `main`/`gb10-2026-09-09` rollback remains intact.
 
 ## Rollback
 

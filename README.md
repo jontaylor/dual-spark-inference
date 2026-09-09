@@ -5,18 +5,28 @@ Reproducible deployment tooling for two DGX Spark / GB10 machines, derived from
 The inference changes live in the pinned
 [vllm-gb10](https://github.com/jontaylor/vllm-gb10) `server` submodule.
 
-This validated branch uses official vLLM **0.29.0**, with the matching ARM64
-release image, selected Mia/GB10 changes, three reviewed PRs and a recurrent
-replay-retention correction. It passes prefix, throughput and C4 × 262K capacity
-checks. Release: `gb10-v0.29.0-2026-09-09`. The earlier deployment remains on `main` and the
-`gb10-2026-09-09` tag. See [the migration record](docs/v029-migration.md).
+This experimental branch adds measured GB10 BF16 and sparse-attention kernel
+profiles and an opt-in prefill-allocation policy to the validated official
+vLLM **0.29.0** bundle. Neither tested combination established a dependable
+overall serving improvement, so the live service retains the previous
+validated deployment. See the [sizing results and decision](docs/gb10-sizing.md).
 
-Short-context decode throughput is broadly unchanged. In this comparison,
-full-context C4 decode was 7.3% slower cold and 4.9% slower warm. Both passed
-without preemptions; warm replay reused 259,200 tokens per request. Individual
-PR performance effects have not been isolated.
+The combined sizing candidate passed C4 × 262K and prefix checks without
+preemptions. Short-context decode was broadly unchanged; warm full-context
+decode averaged 2.2% higher, with overlapping run ranges and different MTP
+acceptance. A follow-up with the kernel profiles and the previous prefill policy
+passed correctness checks but took longer on the mixed workload. These
+experiments do not establish recovery of the earlier migration regression.
 
-## Selected configuration
+The previous validated deployment remains tagged `gb10-v0.29.0-2026-09-09`;
+the original remains on `main` and `gb10-2026-09-09`. See
+[the migration record](docs/v029-migration.md) for the earlier comparison.
+
+## Experiment configuration
+
+The example enables the combined candidate so that its full serving suite can
+be reproduced. This is not the configuration selected for the live service.
+Use `gb10-v0.29.0-2026-09-09` for the retained deployment.
 
 | Setting | Value |
 |---|---|
@@ -36,8 +46,10 @@ PR performance effects have not been isolated.
 | API port | 30001; credential supplied through a local file |
 
 The 8,192-token budget is shared across eligible requests. Actual non-final
-prefill chunks respect the 1,600-token state alignment; C1 typically receives
-8,000 and four eligible prefills typically receive 1,600 each.
+prefill chunks respect the 1,600-token state alignment. With the experimental
+remainder option enabled, four eligible prefills can receive 3,200 + 1,600 +
+1,600 + 1,600, rotating the extra share. The retained deployment gives each
+of four long eligible prefills 1,600.
 Optimisation flags enable code from the server submodule; stock vLLM with the
 same settings does not reproduce this deployment.
 
@@ -71,7 +83,7 @@ Allow roughly 8 GiB/node for the OS. Model weights and a local packed PLE table
 must fit on each node's NVMe; they are not downloaded by cloning this repository.
 
 ```bash
-git clone --branch gb10/v0.29.0-pr-batch --recurse-submodules https://github.com/jontaylor/dual-spark-inference.git
+git clone --branch gb10/v0.29.0-sizing --recurse-submodules https://github.com/jontaylor/dual-spark-inference.git
 cd dual-spark-inference
 cp deploy_config.example.json deploy_config.json
 python3 -m venv .venv

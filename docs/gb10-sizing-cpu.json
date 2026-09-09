@@ -1,0 +1,9121 @@
+{
+  "host": "worker GB10",
+  "profiles": 52,
+  "byte_exact": true,
+  "domains": {
+    "small": "whole cluster 0, mixed A725/X925",
+    "large": "whole cluster 1, mixed A725/X925",
+    "fast0": "X925 CPUs 5-9",
+    "fast1": "X925 CPUs 15-19",
+    "fast_all": "all ten X925 cores",
+    "all": "unrestricted"
+  },
+  "limits": [
+    "Serial hit copies and cache insertion are on the calling thread.",
+    "warm_miss includes minor faults from fresh software-cache allocations.",
+    "Whole-process/OpenMP binding does not isolate PLE threads from engine threads.",
+    "No measured memory/SLC lane count or hardware cache-hit counters."
+  ],
+  "groups": [
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 5618.10325,
+      "range_of_run_medians_us": [
+        5613.143,
+        5623.0635
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 77.816,
+      "range_of_run_medians_us": [
+        74.144,
+        81.488
+      ],
+      "major_faults": 0,
+      "minor_faults": 2348
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 2.684,
+      "range_of_run_medians_us": [
+        2.68,
+        2.688
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 112.05525,
+      "range_of_run_medians_us": [
+        111.87950000000001,
+        112.231
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 20324.905749999998,
+      "range_of_run_medians_us": [
+        19938.559999999998,
+        20711.2515
+      ],
+      "major_faults": 12124,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 179.96699999999998,
+      "range_of_run_medians_us": [
+        146.367,
+        213.567
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4.656,
+      "range_of_run_medians_us": [
+        4.6,
+        4.712
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 307.80675,
+      "range_of_run_medians_us": [
+        292.095,
+        323.5185
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 6266.72825,
+      "range_of_run_medians_us": [
+        6122.1810000000005,
+        6411.2755
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 605.60525,
+      "range_of_run_medians_us": [
+        495.358,
+        715.8525
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 15504.731,
+      "range_of_run_medians_us": [
+        15082.1095,
+        15927.3525
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 16883.909,
+      "range_of_run_medians_us": [
+        16767.781,
+        17000.037
+      ],
+      "major_faults": 0,
+      "minor_faults": 82148
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 3847.6229999999996,
+      "range_of_run_medians_us": [
+        3649.2,
+        4046.046
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 46793.2565,
+      "range_of_run_medians_us": [
+        46659.248,
+        46927.265
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 5319.4125,
+      "range_of_run_medians_us": [
+        3510.9049999999997,
+        7127.92
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 121.0875,
+      "range_of_run_medians_us": [
+        99.69550000000001,
+        142.4795
+      ],
+      "major_faults": 0,
+      "minor_faults": 2352
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 3.016,
+      "range_of_run_medians_us": [
+        2.912,
+        3.12
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 178.81925,
+      "range_of_run_medians_us": [
+        173.6635,
+        183.97500000000002
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 12804.3195,
+      "range_of_run_medians_us": [
+        12475.0085,
+        13133.6305
+      ],
+      "major_faults": 12132,
+      "minor_faults": 12088
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 572.4855,
+      "range_of_run_medians_us": [
+        498.998,
+        645.973
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 6.05575,
+      "range_of_run_medians_us": [
+        5.352,
+        6.7595
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 596.7455,
+      "range_of_run_medians_us": [
+        550.2215,
+        643.2695
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 6595.6305,
+      "range_of_run_medians_us": [
+        6194.7564999999995,
+        6996.504500000001
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 1443.4502499999999,
+      "range_of_run_medians_us": [
+        1432.0265,
+        1454.874
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 15793.17375,
+      "range_of_run_medians_us": [
+        15012.39,
+        16573.9575
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 16640.8055,
+      "range_of_run_medians_us": [
+        16254.472,
+        17027.139
+      ],
+      "major_faults": 0,
+      "minor_faults": 81126
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4296.8765,
+      "range_of_run_medians_us": [
+        4271.516,
+        4322.237
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 46688.104999999996,
+      "range_of_run_medians_us": [
+        44660.653,
+        48715.557
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 3859.3427500000003,
+      "range_of_run_medians_us": [
+        2637.9570000000003,
+        5080.7285
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 216.93099999999998,
+      "range_of_run_medians_us": [
+        210.327,
+        223.535
+      ],
+      "major_faults": 0,
+      "minor_faults": 2360
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 3.516,
+      "range_of_run_medians_us": [
+        3.032,
+        4.0
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 236.92700000000002,
+      "range_of_run_medians_us": [
+        218.223,
+        255.63100000000003
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 8536.84625,
+      "range_of_run_medians_us": [
+        8180.1565,
+        8893.536
+      ],
+      "major_faults": 12129,
+      "minor_faults": 12114
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 472.0545,
+      "range_of_run_medians_us": [
+        350.735,
+        593.374
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 6.752,
+      "range_of_run_medians_us": [
+        6.648,
+        6.856
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 590.3895,
+      "range_of_run_medians_us": [
+        468.646,
+        712.133
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 6329.40775,
+      "range_of_run_medians_us": [
+        6220.709000000001,
+        6438.1065
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 1141.23475,
+      "range_of_run_medians_us": [
+        948.404,
+        1334.0655
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 15532.515,
+      "range_of_run_medians_us": [
+        15354.802499999998,
+        15710.2275
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 14882.1335,
+      "range_of_run_medians_us": [
+        14410.782,
+        15353.485
+      ],
+      "major_faults": 0,
+      "minor_faults": 81126
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4424.7005,
+      "range_of_run_medians_us": [
+        3938.719,
+        4910.682
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 44716.609500000006,
+      "range_of_run_medians_us": [
+        43964.105,
+        45469.114
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 4,
+      "median_of_run_medians_us": 1988.1354999999999,
+      "range_of_run_medians_us": [
+        1850.8429999999998,
+        2008.9144999999999
+      ],
+      "major_faults": 6356,
+      "minor_faults": 6364
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 4,
+      "median_of_run_medians_us": 377.0065,
+      "range_of_run_medians_us": [
+        257.839,
+        527.0865
+      ],
+      "major_faults": 0,
+      "minor_faults": 4752
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 4,
+      "median_of_run_medians_us": 3.456,
+      "range_of_run_medians_us": [
+        3.2720000000000002,
+        3.8
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 4,
+      "median_of_run_medians_us": 388.1545,
+      "range_of_run_medians_us": [
+        280.703,
+        580.997
+      ],
+      "major_faults": 0,
+      "minor_faults": 6364
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 4,
+      "median_of_run_medians_us": 5895.939249999999,
+      "range_of_run_medians_us": [
+        5791.2855,
+        6072.711
+      ],
+      "major_faults": 24307,
+      "minor_faults": 24350
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 4,
+      "median_of_run_medians_us": 648.773,
+      "range_of_run_medians_us": [
+        420.095,
+        694.822
+      ],
+      "major_faults": 0,
+      "minor_faults": 17680
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 4,
+      "median_of_run_medians_us": 6.364000000000001,
+      "range_of_run_medians_us": [
+        5.792,
+        14.784
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 4,
+      "median_of_run_medians_us": 632.5699999999999,
+      "range_of_run_medians_us": [
+        487.094,
+        833.8205
+      ],
+      "major_faults": 0,
+      "minor_faults": 24088
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 4,
+      "median_of_run_medians_us": 6571.99025,
+      "range_of_run_medians_us": [
+        5889.669,
+        6737.2825
+      ],
+      "major_faults": 0,
+      "minor_faults": 130548
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 4,
+      "median_of_run_medians_us": 1513.1307499999998,
+      "range_of_run_medians_us": [
+        1431.868,
+        1877.6955
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 4,
+      "median_of_run_medians_us": 15849.94075,
+      "range_of_run_medians_us": [
+        13010.0765,
+        16488.5545
+      ],
+      "major_faults": 0,
+      "minor_faults": 271312
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 4,
+      "median_of_run_medians_us": 15891.6165,
+      "range_of_run_medians_us": [
+        13846.337,
+        16684.787
+      ],
+      "major_faults": 0,
+      "minor_faults": 162252
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 4,
+      "median_of_run_medians_us": 4898.359,
+      "range_of_run_medians_us": [
+        3993.142,
+        5427.031
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "all",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 4,
+      "median_of_run_medians_us": 44490.957,
+      "range_of_run_medians_us": [
+        39462.14,
+        47162.766
+      ],
+      "major_faults": 0,
+      "minor_faults": 379332
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 7706.32925,
+      "range_of_run_medians_us": [
+        6817.456,
+        8595.2025
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 79.804,
+      "range_of_run_medians_us": [
+        76.50399999999999,
+        83.104
+      ],
+      "major_faults": 0,
+      "minor_faults": 2348
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 2.7279999999999998,
+      "range_of_run_medians_us": [
+        2.672,
+        2.784
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 105.28325000000001,
+      "range_of_run_medians_us": [
+        104.8395,
+        105.727
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 27601.60875,
+      "range_of_run_medians_us": [
+        27284.675000000003,
+        27918.5425
+      ],
+      "major_faults": 12124,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 229.75925,
+      "range_of_run_medians_us": [
+        216.16750000000002,
+        243.351
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 5.28,
+      "range_of_run_medians_us": [
+        5.248,
+        5.312
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 342.139,
+      "range_of_run_medians_us": [
+        337.735,
+        346.543
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 22337.941,
+      "range_of_run_medians_us": [
+        21954.244,
+        22721.638
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 693.3534999999999,
+      "range_of_run_medians_us": [
+        687.366,
+        699.341
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 16263.60975,
+      "range_of_run_medians_us": [
+        16257.09,
+        16270.129500000001
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 17101.591,
+      "range_of_run_medians_us": [
+        16928.711,
+        17274.471
+      ],
+      "major_faults": 0,
+      "minor_faults": 82148
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4024.3464999999997,
+      "range_of_run_medians_us": [
+        4009.27,
+        4039.423
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 46947.3085,
+      "range_of_run_medians_us": [
+        46056.394,
+        47838.223
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 5642.4325,
+      "range_of_run_medians_us": [
+        5623.559499999999,
+        5661.3055
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 188.12699999999998,
+      "range_of_run_medians_us": [
+        183.84699999999998,
+        192.40699999999998
+      ],
+      "major_faults": 0,
+      "minor_faults": 2352
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4.648,
+      "range_of_run_medians_us": [
+        4.5440000000000005,
+        4.752
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 279.203,
+      "range_of_run_medians_us": [
+        221.4235,
+        336.98249999999996
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 16384.0,
+      "range_of_run_medians_us": [
+        16259.3195,
+        16508.680500000002
+      ],
+      "major_faults": 12163,
+      "minor_faults": 12105
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 1090.685,
+      "range_of_run_medians_us": [
+        510.966,
+        1670.404
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 8.304,
+      "range_of_run_medians_us": [
+        7.88,
+        8.728000000000002
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 2660.4184999999998,
+      "range_of_run_medians_us": [
+        1961.5315,
+        3359.3055
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 19885.8105,
+      "range_of_run_medians_us": [
+        18181.227,
+        21590.394
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 802.945,
+      "range_of_run_medians_us": [
+        775.2860000000001,
+        830.604
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 45660.996,
+      "range_of_run_medians_us": [
+        44736.537,
+        46585.455
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 15263.108,
+      "range_of_run_medians_us": [
+        14959.547,
+        15566.669
+      ],
+      "major_faults": 0,
+      "minor_faults": 81637
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4078.29,
+      "range_of_run_medians_us": [
+        4018.558,
+        4138.022
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 47173.879,
+      "range_of_run_medians_us": [
+        47137.546,
+        47210.212
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 4806.579750000001,
+      "range_of_run_medians_us": [
+        4298.2615000000005,
+        5314.898
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 219.97500000000002,
+      "range_of_run_medians_us": [
+        214.847,
+        225.103
+      ],
+      "major_faults": 0,
+      "minor_faults": 2360
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4.916,
+      "range_of_run_medians_us": [
+        4.912,
+        4.92
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 448.874,
+      "range_of_run_medians_us": [
+        252.887,
+        644.861
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 10780.46675,
+      "range_of_run_medians_us": [
+        10704.7885,
+        10856.145
+      ],
+      "major_faults": 12149,
+      "minor_faults": 12096
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 499.69825,
+      "range_of_run_medians_us": [
+        478.58299999999997,
+        520.8135
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 9.536,
+      "range_of_run_medians_us": [
+        9.376,
+        9.696
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 2660.55125,
+      "range_of_run_medians_us": [
+        1942.2955,
+        3378.807
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 17878.338,
+      "range_of_run_medians_us": [
+        17680.978,
+        18075.698
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 3835.6745,
+      "range_of_run_medians_us": [
+        3700.8540000000003,
+        3970.495
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 47259.32000000001,
+      "range_of_run_medians_us": [
+        47048.846000000005,
+        47469.794
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 14681.301,
+      "range_of_run_medians_us": [
+        14670.704,
+        14691.898
+      ],
+      "major_faults": 0,
+      "minor_faults": 81637
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4054.5699999999997,
+      "range_of_run_medians_us": [
+        3995.167,
+        4113.973
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 44335.063500000004,
+      "range_of_run_medians_us": [
+        42975.446,
+        45694.681
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 5,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 4132.48325,
+      "range_of_run_medians_us": [
+        3801.5925,
+        4463.374
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 5,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 237.25125,
+      "range_of_run_medians_us": [
+        232.503,
+        241.9995
+      ],
+      "major_faults": 0,
+      "minor_faults": 2364
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 5,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 5.22,
+      "range_of_run_medians_us": [
+        4.92,
+        5.52
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 5,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 398.77500000000003,
+      "range_of_run_medians_us": [
+        268.26300000000003,
+        529.287
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 5,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 9571.448250000001,
+      "range_of_run_medians_us": [
+        9065.308,
+        10077.5885
+      ],
+      "major_faults": 12144,
+      "minor_faults": 12105
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 5,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 1167.1095,
+      "range_of_run_medians_us": [
+        508.039,
+        1826.1799999999998
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 5,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 10.116,
+      "range_of_run_medians_us": [
+        10.072,
+        10.16
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 5,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 2652.17075,
+      "range_of_run_medians_us": [
+        1948.6680000000001,
+        3355.6735
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 5,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 18382.62975,
+      "range_of_run_medians_us": [
+        18145.224,
+        18620.035499999998
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 5,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4229.067,
+      "range_of_run_medians_us": [
+        4044.488,
+        4413.646
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 5,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 43464.029,
+      "range_of_run_medians_us": [
+        43412.8235,
+        43515.234500000006
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 5,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 14652.681499999999,
+      "range_of_run_medians_us": [
+        14567.616,
+        14737.747
+      ],
+      "major_faults": 0,
+      "minor_faults": 81126
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 5,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4027.0879999999997,
+      "range_of_run_medians_us": [
+        3967.705,
+        4086.471
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast0",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 5,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 44666.729999999996,
+      "range_of_run_medians_us": [
+        43633.002,
+        45700.458
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 6180.995,
+      "range_of_run_medians_us": [
+        6133.9485,
+        6228.041499999999
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 74.772,
+      "range_of_run_medians_us": [
+        69.424,
+        80.12
+      ],
+      "major_faults": 0,
+      "minor_faults": 2348
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 2.668,
+      "range_of_run_medians_us": [
+        2.648,
+        2.688
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 103.284,
+      "range_of_run_medians_us": [
+        101.05600000000001,
+        105.512
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 27443.3875,
+      "range_of_run_medians_us": [
+        27405.83,
+        27480.945
+      ],
+      "major_faults": 12124,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 236.00799999999998,
+      "range_of_run_medians_us": [
+        233.256,
+        238.76
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4.779999999999999,
+      "range_of_run_medians_us": [
+        4.776,
+        4.784
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 315.06325000000004,
+      "range_of_run_medians_us": [
+        306.983,
+        323.1435
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 18200.670250000003,
+      "range_of_run_medians_us": [
+        17969.1425,
+        18432.198
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 521.55475,
+      "range_of_run_medians_us": [
+        520.4705,
+        522.639
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 14914.74475,
+      "range_of_run_medians_us": [
+        14052.039,
+        15777.450499999999
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 16633.525999999998,
+      "range_of_run_medians_us": [
+        16253.979,
+        17013.073
+      ],
+      "major_faults": 0,
+      "minor_faults": 81126
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 3872.96,
+      "range_of_run_medians_us": [
+        3872.295,
+        3873.625
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 44959.723,
+      "range_of_run_medians_us": [
+        42515.773,
+        47403.673
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 5227.6825,
+      "range_of_run_medians_us": [
+        4977.7065,
+        5477.6585
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 170.683,
+      "range_of_run_medians_us": [
+        161.92700000000002,
+        179.439
+      ],
+      "major_faults": 0,
+      "minor_faults": 2352
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4.016,
+      "range_of_run_medians_us": [
+        3.464,
+        4.568
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 222.13525,
+      "range_of_run_medians_us": [
+        214.8315,
+        229.43900000000002
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 16532.380250000002,
+      "range_of_run_medians_us": [
+        16362.280999999999,
+        16702.4795
+      ],
+      "major_faults": 12148,
+      "minor_faults": 12084
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 604.534,
+      "range_of_run_medians_us": [
+        442.93399999999997,
+        766.134
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 7.676,
+      "range_of_run_medians_us": [
+        7.664,
+        7.688
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 869.40075,
+      "range_of_run_medians_us": [
+        511.639,
+        1227.1625
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 17437.92175,
+      "range_of_run_medians_us": [
+        16982.455,
+        17893.3885
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 727.8575,
+      "range_of_run_medians_us": [
+        680.165,
+        775.55
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 40266.40025,
+      "range_of_run_medians_us": [
+        36163.5995,
+        44369.201
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 14708.7585,
+      "range_of_run_medians_us": [
+        14183.475,
+        15234.042
+      ],
+      "major_faults": 0,
+      "minor_faults": 81126
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 3841.4030000000002,
+      "range_of_run_medians_us": [
+        3729.655,
+        3953.151
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 45375.4545,
+      "range_of_run_medians_us": [
+        45185.277,
+        45565.632
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 4467.436,
+      "range_of_run_medians_us": [
+        4110.413,
+        4824.459000000001
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 218.3195,
+      "range_of_run_medians_us": [
+        204.752,
+        231.887
+      ],
+      "major_faults": 0,
+      "minor_faults": 2360
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4.652,
+      "range_of_run_medians_us": [
+        4.256,
+        5.048
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 294.09499999999997,
+      "range_of_run_medians_us": [
+        220.5435,
+        367.64649999999995
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 10686.3345,
+      "range_of_run_medians_us": [
+        10022.1025,
+        11350.5665
+      ],
+      "major_faults": 12144,
+      "minor_faults": 12120
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 580.4177500000001,
+      "range_of_run_medians_us": [
+        515.1265000000001,
+        645.7090000000001
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 8.616000000000001,
+      "range_of_run_medians_us": [
+        8.312000000000001,
+        8.920000000000002
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 1270.81925,
+      "range_of_run_medians_us": [
+        767.294,
+        1774.3445
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 17706.20325,
+      "range_of_run_medians_us": [
+        17599.548,
+        17812.858500000002
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 1114.31225,
+      "range_of_run_medians_us": [
+        873.196,
+        1355.4285
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 43677.301999999996,
+      "range_of_run_medians_us": [
+        43263.685,
+        44090.919
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 14184.279,
+      "range_of_run_medians_us": [
+        14137.388,
+        14231.17
+      ],
+      "major_faults": 0,
+      "minor_faults": 81126
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 3850.3625,
+      "range_of_run_medians_us": [
+        3771.542,
+        3929.183
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 43787.617,
+      "range_of_run_medians_us": [
+        43559.235,
+        44015.999
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 2856.406,
+      "range_of_run_medians_us": [
+        2734.898,
+        2977.9139999999998
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 256.212,
+      "range_of_run_medians_us": [
+        244.696,
+        267.728
+      ],
+      "major_faults": 0,
+      "minor_faults": 2364
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4.747999999999999,
+      "range_of_run_medians_us": [
+        3.992,
+        5.504
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 295.17575,
+      "range_of_run_medians_us": [
+        278.52750000000003,
+        311.82399999999996
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 10231.3745,
+      "range_of_run_medians_us": [
+        10055.034,
+        10407.715
+      ],
+      "major_faults": 12134,
+      "minor_faults": 12107
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 1214.9335,
+      "range_of_run_medians_us": [
+        668.527,
+        1761.3400000000001
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 8.411999999999999,
+      "range_of_run_medians_us": [
+        8.328,
+        8.496
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 1685.99625,
+      "range_of_run_medians_us": [
+        534.3105,
+        2837.682
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 17542.6115,
+      "range_of_run_medians_us": [
+        17332.0425,
+        17753.1805
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 2882.5855,
+      "range_of_run_medians_us": [
+        2272.571,
+        3492.6
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 45877.5395,
+      "range_of_run_medians_us": [
+        43106.641,
+        48648.438
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 14144.8985,
+      "range_of_run_medians_us": [
+        14144.161,
+        14145.636
+      ],
+      "major_faults": 0,
+      "minor_faults": 81126
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 3997.8475,
+      "range_of_run_medians_us": [
+        3952.232,
+        4043.463
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast1",
+      "cpus": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 43426.173,
+      "range_of_run_medians_us": [
+        43404.338,
+        43448.008
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 7594.6155,
+      "range_of_run_medians_us": [
+        6885.5785,
+        8303.6525
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 80.8715,
+      "range_of_run_medians_us": [
+        78.1995,
+        83.5435
+      ],
+      "major_faults": 0,
+      "minor_faults": 2348
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 2.88,
+      "range_of_run_medians_us": [
+        2.776,
+        2.984
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 107.12375,
+      "range_of_run_medians_us": [
+        104.8555,
+        109.392
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 27739.534499999998,
+      "range_of_run_medians_us": [
+        27307.3065,
+        28171.762499999997
+      ],
+      "major_faults": 12124,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 245.13174999999998,
+      "range_of_run_medians_us": [
+        241.3275,
+        248.93599999999998
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 5.348000000000001,
+      "range_of_run_medians_us": [
+        5.296,
+        5.4
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 341.28725,
+      "range_of_run_medians_us": [
+        339.8795,
+        342.695
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 17031.8125,
+      "range_of_run_medians_us": [
+        15872.435999999998,
+        18191.189
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 682.9065,
+      "range_of_run_medians_us": [
+        656.9425,
+        708.8705
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 15988.44275,
+      "range_of_run_medians_us": [
+        15730.012,
+        16246.8735
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 17343.588,
+      "range_of_run_medians_us": [
+        17323.177,
+        17363.999
+      ],
+      "major_faults": 0,
+      "minor_faults": 81126
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4020.4795,
+      "range_of_run_medians_us": [
+        3931.352,
+        4109.607
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 47653.516,
+      "range_of_run_medians_us": [
+        47431.204,
+        47875.828
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 5794.508,
+      "range_of_run_medians_us": [
+        5308.835,
+        6280.181
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 184.26749999999998,
+      "range_of_run_medians_us": [
+        166.0155,
+        202.5195
+      ],
+      "major_faults": 0,
+      "minor_faults": 2352
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4.916,
+      "range_of_run_medians_us": [
+        4.832,
+        5.0
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 256.6915,
+      "range_of_run_medians_us": [
+        228.776,
+        284.607
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 16103.4375,
+      "range_of_run_medians_us": [
+        15393.475,
+        16813.4
+      ],
+      "major_faults": 12146,
+      "minor_faults": 12094
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 498.1945,
+      "range_of_run_medians_us": [
+        491.4705,
+        504.9185
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 8.928,
+      "range_of_run_medians_us": [
+        8.688,
+        9.168
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 2040.20275,
+      "range_of_run_medians_us": [
+        679.8615,
+        3400.544
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 19529.9825,
+      "range_of_run_medians_us": [
+        19499.281499999997,
+        19560.6835
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 841.2855,
+      "range_of_run_medians_us": [
+        788.405,
+        894.1659999999999
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 45355.056,
+      "range_of_run_medians_us": [
+        44606.4795,
+        46103.6325
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 15709.690999999999,
+      "range_of_run_medians_us": [
+        15702.042,
+        15717.34
+      ],
+      "major_faults": 0,
+      "minor_faults": 81126
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4116.002,
+      "range_of_run_medians_us": [
+        4098.31,
+        4133.694
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 46442.939,
+      "range_of_run_medians_us": [
+        45926.593,
+        46959.285
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 5062.194750000001,
+      "range_of_run_medians_us": [
+        4590.468,
+        5533.9215
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 209.11525,
+      "range_of_run_medians_us": [
+        209.103,
+        209.1275
+      ],
+      "major_faults": 0,
+      "minor_faults": 2360
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4.916,
+      "range_of_run_medians_us": [
+        4.712,
+        5.12
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 249.255,
+      "range_of_run_medians_us": [
+        247.1035,
+        251.4065
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 10699.376,
+      "range_of_run_medians_us": [
+        10591.059000000001,
+        10807.693
+      ],
+      "major_faults": 12148,
+      "minor_faults": 12098
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 444.07025,
+      "range_of_run_medians_us": [
+        412.534,
+        475.6065
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 8.932,
+      "range_of_run_medians_us": [
+        8.8,
+        9.064
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 1287.287,
+      "range_of_run_medians_us": [
+        514.159,
+        2060.415
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 16153.1705,
+      "range_of_run_medians_us": [
+        14414.346,
+        17891.995000000003
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 3921.8025,
+      "range_of_run_medians_us": [
+        3800.2619999999997,
+        4043.343
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 42480.598249999995,
+      "range_of_run_medians_us": [
+        38609.3935,
+        46351.803
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 14445.239000000001,
+      "range_of_run_medians_us": [
+        14062.26,
+        14828.218
+      ],
+      "major_faults": 0,
+      "minor_faults": 81126
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4060.4265,
+      "range_of_run_medians_us": [
+        3996.527,
+        4124.326
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 44194.8825,
+      "range_of_run_medians_us": [
+        42323.417,
+        46066.348
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 3148.3975,
+      "range_of_run_medians_us": [
+        3057.386,
+        3239.409
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 223.2755,
+      "range_of_run_medians_us": [
+        208.7355,
+        237.8155
+      ],
+      "major_faults": 0,
+      "minor_faults": 2364
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 5.16375,
+      "range_of_run_medians_us": [
+        4.951499999999999,
+        5.376
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 270.98749999999995,
+      "range_of_run_medians_us": [
+        266.0555,
+        275.91949999999997
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 9838.479500000001,
+      "range_of_run_medians_us": [
+        9737.132,
+        9939.827000000001
+      ],
+      "major_faults": 12159,
+      "minor_faults": 12122
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 2047.2637499999998,
+      "range_of_run_medians_us": [
+        1892.788,
+        2201.7394999999997
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 10.176,
+      "range_of_run_medians_us": [
+        9.48,
+        10.872
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 3358.4212500000003,
+      "range_of_run_medians_us": [
+        3343.1535000000003,
+        3373.6890000000003
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 16017.95075,
+      "range_of_run_medians_us": [
+        15244.577000000001,
+        16791.3245
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4000.8835,
+      "range_of_run_medians_us": [
+        3785.0640000000003,
+        4216.7029999999995
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 46010.38325,
+      "range_of_run_medians_us": [
+        45787.4545,
+        46233.312000000005
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 14849.104500000001,
+      "range_of_run_medians_us": [
+        14782.545,
+        14915.664
+      ],
+      "major_faults": 0,
+      "minor_faults": 81126
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4023.456,
+      "range_of_run_medians_us": [
+        4006.584,
+        4040.328
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 5,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 44937.321500000005,
+      "range_of_run_medians_us": [
+        44719.809,
+        45154.834
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 3792.894,
+      "range_of_run_medians_us": [
+        3393.415,
+        4192.373
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 446.40299999999996,
+      "range_of_run_medians_us": [
+        374.111,
+        518.6949999999999
+      ],
+      "major_faults": 0,
+      "minor_faults": 2376
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 6.0760000000000005,
+      "range_of_run_medians_us": [
+        5.656,
+        6.496
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 411.60675,
+      "range_of_run_medians_us": [
+        341.775,
+        481.4385
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 10036.092999999999,
+      "range_of_run_medians_us": [
+        9994.253499999999,
+        10077.932499999999
+      ],
+      "major_faults": 12134,
+      "minor_faults": 12170
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 1010.02125,
+      "range_of_run_medians_us": [
+        851.8615,
+        1168.181
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 11.16,
+      "range_of_run_medians_us": [
+        10.8,
+        11.52
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 2657.997,
+      "range_of_run_medians_us": [
+        1906.2195,
+        3409.7745
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 19586.05925,
+      "range_of_run_medians_us": [
+        17686.784,
+        21485.334499999997
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 2634.989,
+      "range_of_run_medians_us": [
+        1366.2525,
+        3903.7255
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 44521.3165,
+      "range_of_run_medians_us": [
+        44361.368,
+        44681.265
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 13784.931499999999,
+      "range_of_run_medians_us": [
+        13743.339,
+        13826.524
+      ],
+      "major_faults": 0,
+      "minor_faults": 81637
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4926.762500000001,
+      "range_of_run_medians_us": [
+        4701.667,
+        5151.858
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "fast_all",
+      "cpus": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 44042.345499999996,
+      "range_of_run_medians_us": [
+        42709.949,
+        45374.742
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 11758.304,
+      "range_of_run_medians_us": [
+        11728.1165,
+        11788.4915
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 74.5195,
+      "range_of_run_medians_us": [
+        66.2315,
+        82.8075
+      ],
+      "major_faults": 0,
+      "minor_faults": 2348
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 7.24,
+      "range_of_run_medians_us": [
+        7.112,
+        7.368
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 100.13149999999999,
+      "range_of_run_medians_us": [
+        98.90299999999999,
+        101.36
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 39359.24975,
+      "range_of_run_medians_us": [
+        39317.843,
+        39400.6565
+      ],
+      "major_faults": 12124,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 244.49099999999999,
+      "range_of_run_medians_us": [
+        212.167,
+        276.815
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 12.6,
+      "range_of_run_medians_us": [
+        12.144,
+        13.056
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 293.451,
+      "range_of_run_medians_us": [
+        292.031,
+        294.871
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 18348.10675,
+      "range_of_run_medians_us": [
+        18308.222999999998,
+        18387.9905
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 806.93625,
+      "range_of_run_medians_us": [
+        732.1645,
+        881.708
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 51496.448000000004,
+      "range_of_run_medians_us": [
+        51202.574,
+        51790.322
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 50303.3215,
+      "range_of_run_medians_us": [
+        46511.825,
+        54094.818
+      ],
+      "major_faults": 0,
+      "minor_faults": 81126
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4016.11,
+      "range_of_run_medians_us": [
+        3848.751,
+        4183.469
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 1,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 50402.993,
+      "range_of_run_medians_us": [
+        49485.94,
+        51320.046
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 7771.2535,
+      "range_of_run_medians_us": [
+        7642.1505,
+        7900.3565
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 210.15099999999998,
+      "range_of_run_medians_us": [
+        202.38299999999998,
+        217.91899999999998
+      ],
+      "major_faults": 0,
+      "minor_faults": 2352
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 14.948,
+      "range_of_run_medians_us": [
+        14.632000000000001,
+        15.264
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 234.643,
+      "range_of_run_medians_us": [
+        226.839,
+        242.447
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 22697.7635,
+      "range_of_run_medians_us": [
+        21862.2405,
+        23533.286500000002
+      ],
+      "major_faults": 12127,
+      "minor_faults": 12104
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 1762.81625,
+      "range_of_run_medians_us": [
+        457.158,
+        3068.4745000000003
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 20.732,
+      "range_of_run_medians_us": [
+        20.648,
+        20.816
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 2600.7725,
+      "range_of_run_medians_us": [
+        1862.272,
+        3339.273
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 19704.684500000003,
+      "range_of_run_medians_us": [
+        17986.465,
+        21422.904000000002
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 3474.6445000000003,
+      "range_of_run_medians_us": [
+        3071.2340000000004,
+        3878.055
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 43847.92175,
+      "range_of_run_medians_us": [
+        40992.8845,
+        46702.959
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 49923.010500000004,
+      "range_of_run_medians_us": [
+        45788.327,
+        54057.694
+      ],
+      "major_faults": 0,
+      "minor_faults": 81637
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4188.1175,
+      "range_of_run_medians_us": [
+        4020.878,
+        4355.357
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 2,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 60072.247,
+      "range_of_run_medians_us": [
+        44912.567,
+        75231.927
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 5415.07225,
+      "range_of_run_medians_us": [
+        5322.528,
+        5507.6165
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 245.85475,
+      "range_of_run_medians_us": [
+        237.91899999999998,
+        253.7905
+      ],
+      "major_faults": 0,
+      "minor_faults": 2360
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 16.211999999999996,
+      "range_of_run_medians_us": [
+        16.2,
+        16.223999999999997
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 280.16650000000004,
+      "range_of_run_medians_us": [
+        274.21500000000003,
+        286.118
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 14216.1765,
+      "range_of_run_medians_us": [
+        14095.536,
+        14336.817
+      ],
+      "major_faults": 12147,
+      "minor_faults": 12144
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 2968.53475,
+      "range_of_run_medians_us": [
+        2947.2110000000002,
+        2989.8585
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 21.35975,
+      "range_of_run_medians_us": [
+        21.1035,
+        21.616
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 1998.73475,
+      "range_of_run_medians_us": [
+        1954.839,
+        2042.6305
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 20163.34275,
+      "range_of_run_medians_us": [
+        18815.763,
+        21510.9225
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4926.5785,
+      "range_of_run_medians_us": [
+        4139.7815,
+        5713.3755
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 44878.01275,
+      "range_of_run_medians_us": [
+        43783.065,
+        45972.9605
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 49946.1945,
+      "range_of_run_medians_us": [
+        47622.505,
+        52269.884
+      ],
+      "major_faults": 0,
+      "minor_faults": 81126
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4384.589,
+      "range_of_run_medians_us": [
+        4324.205,
+        4444.973
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 4,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 90405.0135,
+      "range_of_run_medians_us": [
+        78686.633,
+        102123.394
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 3970.7905,
+      "range_of_run_medians_us": [
+        3786.119,
+        4155.4619999999995
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 373.65024999999997,
+      "range_of_run_medians_us": [
+        371.582,
+        375.71849999999995
+      ],
+      "major_faults": 0,
+      "minor_faults": 2376
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 15.892,
+      "range_of_run_medians_us": [
+        15.512,
+        16.272
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 405.73,
+      "range_of_run_medians_us": [
+        396.486,
+        414.97400000000005
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 9302.73825,
+      "range_of_run_medians_us": [
+        9260.8315,
+        9344.645
+      ],
+      "major_faults": 12153,
+      "minor_faults": 12150
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 1932.3715,
+      "range_of_run_medians_us": [
+        742.4124999999999,
+        3122.3305
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 21.82,
+      "range_of_run_medians_us": [
+        21.68,
+        21.96
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 3122.11825,
+      "range_of_run_medians_us": [
+        2992.9145,
+        3251.322
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 20094.8465,
+      "range_of_run_medians_us": [
+        19669.3385,
+        20520.3545
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 5482.11925,
+      "range_of_run_medians_us": [
+        3972.6625,
+        6991.576
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 45829.9965,
+      "range_of_run_medians_us": [
+        44921.2375,
+        46738.7555
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 48067.714,
+      "range_of_run_medians_us": [
+        46762.869,
+        49372.559
+      ],
+      "major_faults": 0,
+      "minor_faults": 81637
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4466.907999999999,
+      "range_of_run_medians_us": [
+        4359.581,
+        4574.235
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "large",
+      "cpus": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "threads": 8,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 124626.12599999999,
+      "range_of_run_medians_us": [
+        120281.612,
+        128970.64
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 12075.5785,
+      "range_of_run_medians_us": [
+        11927.891,
+        12223.266
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 97.26375,
+      "range_of_run_medians_us": [
+        95.344,
+        99.18350000000001
+      ],
+      "major_faults": 0,
+      "minor_faults": 2348
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 7.496,
+      "range_of_run_medians_us": [
+        7.392,
+        7.6
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 116.13125,
+      "range_of_run_medians_us": [
+        115.3275,
+        116.935
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 41306.31725,
+      "range_of_run_medians_us": [
+        41291.3935,
+        41321.241
+      ],
+      "major_faults": 12124,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 309.183,
+      "range_of_run_medians_us": [
+        305.935,
+        312.431
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 13.451999999999998,
+      "range_of_run_medians_us": [
+        13.312,
+        13.591999999999999
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 362.08225000000004,
+      "range_of_run_medians_us": [
+        358.238,
+        365.92650000000003
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 24331.22825,
+      "range_of_run_medians_us": [
+        22612.3475,
+        26050.109
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 2442.95325,
+      "range_of_run_medians_us": [
+        1003.0435,
+        3882.863
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 52393.57225,
+      "range_of_run_medians_us": [
+        50048.979,
+        54738.1655
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 60251.7655,
+      "range_of_run_medians_us": [
+        57972.64,
+        62530.891
+      ],
+      "major_faults": 0,
+      "minor_faults": 81637
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4260.701499999999,
+      "range_of_run_medians_us": [
+        4125.07,
+        4396.333
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 1,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 48879.0645,
+      "range_of_run_medians_us": [
+        48477.866,
+        49280.263
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 7355.8795,
+      "range_of_run_medians_us": [
+        7218.904,
+        7492.855
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 222.007,
+      "range_of_run_medians_us": [
+        208.567,
+        235.447
+      ],
+      "major_faults": 0,
+      "minor_faults": 2352
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 16.272,
+      "range_of_run_medians_us": [
+        16.247999999999998,
+        16.296
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 251.991,
+      "range_of_run_medians_us": [
+        236.719,
+        267.26300000000003
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 23494.552,
+      "range_of_run_medians_us": [
+        22774.994,
+        24214.11
+      ],
+      "major_faults": 12129,
+      "minor_faults": 12087
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 3199.166,
+      "range_of_run_medians_us": [
+        3177.978,
+        3220.354
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 23.66,
+      "range_of_run_medians_us": [
+        22.704,
+        24.616
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 3236.03775,
+      "range_of_run_medians_us": [
+        3196.4975,
+        3275.578
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 20799.9,
+      "range_of_run_medians_us": [
+        19903.6875,
+        21696.1125
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4035.41425,
+      "range_of_run_medians_us": [
+        3705.6,
+        4365.228499999999
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 42029.258,
+      "range_of_run_medians_us": [
+        38997.466,
+        45061.05
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 50697.2555,
+      "range_of_run_medians_us": [
+        46983.662,
+        54410.849
+      ],
+      "major_faults": 0,
+      "minor_faults": 81126
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4366.6365,
+      "range_of_run_medians_us": [
+        4198.525,
+        4534.748
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 2,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 54777.469,
+      "range_of_run_medians_us": [
+        44864.779,
+        64690.159
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 5542.2075,
+      "range_of_run_medians_us": [
+        5326.296,
+        5758.119000000001
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 267.61875,
+      "range_of_run_medians_us": [
+        266.9265,
+        268.31100000000004
+      ],
+      "major_faults": 0,
+      "minor_faults": 2360
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 17.06,
+      "range_of_run_medians_us": [
+        17.04,
+        17.08
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 948.128,
+      "range_of_run_medians_us": [
+        291.039,
+        1605.217
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 14380.22825,
+      "range_of_run_medians_us": [
+        14236.0095,
+        14524.447
+      ],
+      "major_faults": 12131,
+      "minor_faults": 12165
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 3208.16175,
+      "range_of_run_medians_us": [
+        3165.7215,
+        3250.602
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 24.33975,
+      "range_of_run_medians_us": [
+        24.319499999999998,
+        24.36
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 3213.02175,
+      "range_of_run_medians_us": [
+        3210.0575,
+        3215.986
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 22322.657,
+      "range_of_run_medians_us": [
+        22092.7995,
+        22552.5145
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4161.4695,
+      "range_of_run_medians_us": [
+        3915.6144999999997,
+        4407.324500000001
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 53194.2,
+      "range_of_run_medians_us": [
+        52233.076499999996,
+        54155.3235
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 50694.55100000001,
+      "range_of_run_medians_us": [
+        47777.033,
+        53612.069
+      ],
+      "major_faults": 0,
+      "minor_faults": 81126
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4402.476000000001,
+      "range_of_run_medians_us": [
+        4257.901,
+        4547.051
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 4,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 80593.33850000001,
+      "range_of_run_medians_us": [
+        78671.07,
+        82515.607
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 8,
+      "rows": 64,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 3825.1389999999997,
+      "range_of_run_medians_us": [
+        3443.057,
+        4207.221
+      ],
+      "major_faults": 3178,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 8,
+      "rows": 64,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 351.298,
+      "range_of_run_medians_us": [
+        339.622,
+        362.974
+      ],
+      "major_faults": 0,
+      "minor_faults": 2376
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 8,
+      "rows": 64,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 17.424,
+      "range_of_run_medians_us": [
+        17.408,
+        17.439999999999998
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 8,
+      "rows": 64,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 736.7289999999999,
+      "range_of_run_medians_us": [
+        405.182,
+        1068.2759999999998
+      ],
+      "major_faults": 0,
+      "minor_faults": 3182
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 8,
+      "rows": 256,
+      "mode": "cold_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 9521.4495,
+      "range_of_run_medians_us": [
+        9473.895,
+        9569.004
+      ],
+      "major_faults": 12148,
+      "minor_faults": 12172
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 8,
+      "rows": 256,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 3089.79825,
+      "range_of_run_medians_us": [
+        3085.3379999999997,
+        3094.2585
+      ],
+      "major_faults": 0,
+      "minor_faults": 8840
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 8,
+      "rows": 256,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 24.47575,
+      "range_of_run_medians_us": [
+        24.304000000000002,
+        24.6475
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 8,
+      "rows": 256,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 2948.251,
+      "range_of_run_medians_us": [
+        2683.156,
+        3213.346
+      ],
+      "major_faults": 0,
+      "minor_faults": 12044
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 8,
+      "rows": 25600,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 21862.363,
+      "range_of_run_medians_us": [
+        21796.6575,
+        21928.0685
+      ],
+      "major_faults": 0,
+      "minor_faults": 65274
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 8,
+      "rows": 25600,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4269.46525,
+      "range_of_run_medians_us": [
+        4166.9575,
+        4371.973
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 8,
+      "rows": 25600,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 46000.65975,
+      "range_of_run_medians_us": [
+        43119.956,
+        48881.3635
+      ],
+      "major_faults": 0,
+      "minor_faults": 135656
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 8,
+      "rows": 128000,
+      "mode": "replay",
+      "rounds": 2,
+      "median_of_run_medians_us": 49071.55,
+      "range_of_run_medians_us": [
+        44771.94,
+        53371.16
+      ],
+      "major_faults": 0,
+      "minor_faults": 81637
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 8,
+      "rows": 128000,
+      "mode": "warm_hit",
+      "rounds": 2,
+      "median_of_run_medians_us": 4533.5645,
+      "range_of_run_medians_us": [
+        4513.708,
+        4553.421
+      ],
+      "major_faults": 0,
+      "minor_faults": 0
+    },
+    {
+      "domain": "small",
+      "cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "threads": 8,
+      "rows": 128000,
+      "mode": "warm_miss",
+      "rounds": 2,
+      "median_of_run_medians_us": 100339.049,
+      "range_of_run_medians_us": [
+        83051.272,
+        117626.826
+      ],
+      "major_faults": 0,
+      "minor_faults": 189666
+    }
+  ]
+}

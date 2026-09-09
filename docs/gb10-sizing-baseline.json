@@ -1,0 +1,912 @@
+{
+  "label": "baseline",
+  "groups": {
+    "ctx12000-c1-warm": {
+      "n": 4,
+      "mean_decode_tps": 46.66103855082646,
+      "range_decode_tps": [
+        45.42661445879023,
+        48.470385093049906
+      ],
+      "stdev_decode_tps": 1.2970086951887418,
+      "mean_ttft_seconds": 1.0958073134970618,
+      "acceptance_rate": 0.6069788797061524,
+      "preemptions": 0.0
+    },
+    "ctx12000-c2-warm": {
+      "n": 4,
+      "mean_decode_tps": 76.28478649280953,
+      "range_decode_tps": [
+        73.75283880140056,
+        78.39977529490224
+      ],
+      "stdev_decode_tps": 1.9231827709393294,
+      "mean_ttft_seconds": 1.7782868499998585,
+      "acceptance_rate": 0.6232340922358436,
+      "preemptions": 0.0
+    },
+    "ctx12000-c3-warm": {
+      "n": 4,
+      "mean_decode_tps": 98.96214283419295,
+      "range_decode_tps": [
+        96.42625768292487,
+        101.91025346092127
+      ],
+      "stdev_decode_tps": 2.463871061836465,
+      "mean_ttft_seconds": 2.757550917507615,
+      "acceptance_rate": 0.6271385048043122,
+      "preemptions": 0.0
+    },
+    "ctx12000-c4-warm": {
+      "n": 4,
+      "mean_decode_tps": 113.13919606174503,
+      "range_decode_tps": [
+        111.1163882221008,
+        115.52290263000596
+      ],
+      "stdev_decode_tps": 1.871649626067307,
+      "mean_ttft_seconds": 3.8159886408611783,
+      "acceptance_rate": 0.6096339779005525,
+      "preemptions": 0.0
+    },
+    "ctx262144-c4-cold": {
+      "n": 1,
+      "mean_decode_tps": 107.58867978161598,
+      "range_decode_tps": [
+        107.58867978161598,
+        107.58867978161598
+      ],
+      "stdev_decode_tps": null,
+      "mean_ttft_seconds": 475.31810167399817,
+      "acceptance_rate": 0.6459032103497844,
+      "preemptions": 0.0
+    },
+    "ctx262144-c4-warm": {
+      "n": 3,
+      "mean_decode_tps": 108.35054112182567,
+      "range_decode_tps": [
+        107.10317119425868,
+        109.82292221507184
+      ],
+      "stdev_decode_tps": 1.3737663274057155,
+      "mean_ttft_seconds": 4.23259158449946,
+      "acceptance_rate": 0.6280473465548326,
+      "preemptions": 0.0
+    },
+    "ctx65536-c4-cold": {
+      "n": 1,
+      "mean_decode_tps": 118.04204513890893,
+      "range_decode_tps": [
+        118.04204513890893,
+        118.04204513890893
+      ],
+      "stdev_decode_tps": null,
+      "mean_ttft_seconds": 101.75968366698362,
+      "acceptance_rate": 0.646102343376375,
+      "preemptions": 0.0
+    },
+    "ctx65536-c4-warm": {
+      "n": 3,
+      "mean_decode_tps": 118.15484772080598,
+      "range_decode_tps": [
+        116.95517982888732,
+        119.21704590823298
+      ],
+      "stdev_decode_tps": 1.1371820346643642,
+      "mean_ttft_seconds": 3.834522980488449,
+      "acceptance_rate": 0.6354609929078014,
+      "preemptions": 0.0
+    }
+  },
+  "runs": [
+    {
+      "file": "baseline-ctx12000-c1-t0-r0.json",
+      "context": 12000,
+      "c": 1,
+      "repeat": 0,
+      "state": "short-task-0",
+      "decode_tps": 45.42661445879023,
+      "e2e_tps": 43.34480983578471,
+      "ttft_seconds": 1.1046079299994744,
+      "decode_seconds": 22.519838033011183,
+      "accepted_draft_tokens": 649,
+      "draft_tokens": 1122,
+      "spec_steps": 374,
+      "acceptance_rate": 0.5784313725490197,
+      "mean_acceptance_length": 2.735294117647059,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 33.92333333333333,
+          "decode_clock_mhz": 2550.8333333333335,
+          "decode_temp_c": 52.5,
+          "samples": 6,
+          "min_available_gib": 12.7025146484375
+        },
+        "rank1": {
+          "decode_power_w": 29.855,
+          "decode_clock_mhz": 2528.0,
+          "decode_temp_c": 51.5,
+          "samples": 6,
+          "min_available_gib": 17.186809539794922
+        }
+      }
+    },
+    {
+      "file": "baseline-ctx12000-c1-t0-r1.json",
+      "context": 12000,
+      "c": 1,
+      "repeat": 1,
+      "state": "short-task-0",
+      "decode_tps": 48.470385093049906,
+      "e2e_tps": 46.11738889596905,
+      "ttft_seconds": 1.0984899429604411,
+      "decode_seconds": 21.105670979013667,
+      "accepted_draft_tokens": 676,
+      "draft_tokens": 1047,
+      "spec_steps": 349,
+      "acceptance_rate": 0.6456542502387774,
+      "mean_acceptance_length": 2.936962750716332,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 34.242,
+          "decode_clock_mhz": 2531.0,
+          "decode_temp_c": 56.2,
+          "samples": 5,
+          "min_available_gib": 12.74483871459961
+        },
+        "rank1": {
+          "decode_power_w": 30.052,
+          "decode_clock_mhz": 2509.0,
+          "decode_temp_c": 54.4,
+          "samples": 5,
+          "min_available_gib": 17.18720245361328
+        }
+      }
+    },
+    {
+      "file": "baseline-ctx12000-c1-t1-r0.json",
+      "context": 12000,
+      "c": 1,
+      "repeat": 0,
+      "state": "short-task-1",
+      "decode_tps": 46.16877375463903,
+      "e2e_tps": 44.08452389358483,
+      "ttft_seconds": 1.0702455710270442,
+      "decode_seconds": 22.157833461998962,
+      "accepted_draft_tokens": 660,
+      "draft_tokens": 1092,
+      "spec_steps": 364,
+      "acceptance_rate": 0.6043956043956044,
+      "mean_acceptance_length": 2.813186813186813,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 36.611666666666665,
+          "decode_clock_mhz": 2535.0,
+          "decode_temp_c": 59.666666666666664,
+          "samples": 6,
+          "min_available_gib": 12.723457336425781
+        },
+        "rank1": {
+          "decode_power_w": 31.09,
+          "decode_clock_mhz": 2509.0,
+          "decode_temp_c": 57.166666666666664,
+          "samples": 6,
+          "min_available_gib": 17.19696807861328
+        }
+      }
+    },
+    {
+      "file": "baseline-ctx12000-c1-t1-r1.json",
+      "context": 12000,
+      "c": 1,
+      "repeat": 1,
+      "state": "short-task-1",
+      "decode_tps": 46.578380896826665,
+      "e2e_tps": 44.38108734092254,
+      "ttft_seconds": 1.1098858100012876,
+      "decode_seconds": 21.96297896798933,
+      "accepted_draft_tokens": 659,
+      "draft_tokens": 1095,
+      "spec_steps": 365,
+      "acceptance_rate": 0.6018264840182649,
+      "mean_acceptance_length": 2.8054794520547945,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 38.58,
+          "decode_clock_mhz": 2529.5,
+          "decode_temp_c": 61.666666666666664,
+          "samples": 6,
+          "min_available_gib": 12.729076385498047
+        },
+        "rank1": {
+          "decode_power_w": 32.9,
+          "decode_clock_mhz": 2509.0,
+          "decode_temp_c": 59.166666666666664,
+          "samples": 6,
+          "min_available_gib": 17.203041076660156
+        }
+      }
+    },
+    {
+      "file": "baseline-ctx12000-c2-t0-r0.json",
+      "context": 12000,
+      "c": 2,
+      "repeat": 0,
+      "state": "short-task-0",
+      "decode_tps": 78.39977529490224,
+      "e2e_tps": 71.98309786246736,
+      "ttft_seconds": 1.6632368805003352,
+      "decode_seconds": 25.56129775196314,
+      "accepted_draft_tokens": 1351,
+      "draft_tokens": 2091,
+      "spec_steps": 697,
+      "acceptance_rate": 0.646102343376375,
+      "mean_acceptance_length": 2.938307030129125,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 39.01,
+          "decode_clock_mhz": 2515.0,
+          "decode_temp_c": 64.57142857142857,
+          "samples": 7,
+          "min_available_gib": 12.703041076660156
+        },
+        "rank1": {
+          "decode_power_w": 34.43,
+          "decode_clock_mhz": 2509.0,
+          "decode_temp_c": 61.857142857142854,
+          "samples": 7,
+          "min_available_gib": 17.201419830322266
+        }
+      }
+    },
+    {
+      "file": "baseline-ctx12000-c2-t0-r1.json",
+      "context": 12000,
+      "c": 2,
+      "repeat": 1,
+      "state": "short-task-0",
+      "decode_tps": 76.74329774405926,
+      "e2e_tps": 71.39036264774639,
+      "ttft_seconds": 1.8494671489752363,
+      "decode_seconds": 25.852420450013597,
+      "accepted_draft_tokens": 1349,
+      "draft_tokens": 2106,
+      "spec_steps": 702,
+      "acceptance_rate": 0.6405508072174739,
+      "mean_acceptance_length": 2.9216524216524213,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 39.934285714285714,
+          "decode_clock_mhz": 2515.0,
+          "decode_temp_c": 66.42857142857143,
+          "samples": 7,
+          "min_available_gib": 12.696784973144531
+        },
+        "rank1": {
+          "decode_power_w": 35.03285714285714,
+          "decode_clock_mhz": 2489.0,
+          "decode_temp_c": 63.142857142857146,
+          "samples": 7,
+          "min_available_gib": 17.192832946777344
+        }
+      }
+    },
+    {
+      "file": "baseline-ctx12000-c2-t1-r0.json",
+      "context": 12000,
+      "c": 2,
+      "repeat": 0,
+      "state": "short-task-1",
+      "decode_tps": 76.24323413087608,
+      "e2e_tps": 69.36881482083412,
+      "ttft_seconds": 1.8668499765044544,
+      "decode_seconds": 25.746546855953056,
+      "accepted_draft_tokens": 1327,
+      "draft_tokens": 2160,
+      "spec_steps": 720,
+      "acceptance_rate": 0.6143518518518518,
+      "mean_acceptance_length": 2.8430555555555554,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 40.28857142857143,
+          "decode_clock_mhz": 2515.0,
+          "decode_temp_c": 68.0,
+          "samples": 7,
+          "min_available_gib": 12.73531723022461
+        },
+        "rank1": {
+          "decode_power_w": 35.152857142857144,
+          "decode_clock_mhz": 2489.0,
+          "decode_temp_c": 64.42857142857143,
+          "samples": 7,
+          "min_available_gib": 17.204261779785156
+        }
+      }
+    },
+    {
+      "file": "baseline-ctx12000-c2-t1-r1.json",
+      "context": 12000,
+      "c": 2,
+      "repeat": 1,
+      "state": "short-task-1",
+      "decode_tps": 73.75283880140056,
+      "e2e_tps": 67.81758892592748,
+      "ttft_seconds": 1.7335933940194082,
+      "decode_seconds": 27.21251185197616,
+      "accepted_draft_tokens": 1311,
+      "draft_tokens": 2208,
+      "spec_steps": 736,
+      "acceptance_rate": 0.59375,
+      "mean_acceptance_length": 2.78125,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 40.472857142857144,
+          "decode_clock_mhz": 2515.0,
+          "decode_temp_c": 68.71428571428571,
+          "samples": 7,
+          "min_available_gib": 12.71524429321289
+        },
+        "rank1": {
+          "decode_power_w": 35.37285714285714,
+          "decode_clock_mhz": 2489.0,
+          "decode_temp_c": 65.42857142857143,
+          "samples": 7,
+          "min_available_gib": 17.176807403564453
+        }
+      }
+    },
+    {
+      "file": "baseline-ctx12000-c3-t0-r0.json",
+      "context": 12000,
+      "c": 3,
+      "repeat": 0,
+      "state": "short-task-0",
+      "decode_tps": 96.42625768292487,
+      "e2e_tps": 87.06809701131661,
+      "ttft_seconds": 3.1140255730133504,
+      "decode_seconds": 31.091116383031476,
+      "accepted_draft_tokens": 1995,
+      "draft_tokens": 3234,
+      "spec_steps": 1078,
+      "acceptance_rate": 0.6168831168831169,
+      "mean_acceptance_length": 2.8506493506493507,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 37.535,
+          "decode_clock_mhz": 2515.0,
+          "decode_temp_c": 69.0,
+          "samples": 8,
+          "min_available_gib": 12.71541976928711
+        },
+        "rank1": {
+          "decode_power_w": 32.53625,
+          "decode_clock_mhz": 2489.0,
+          "decode_temp_c": 66.0,
+          "samples": 8,
+          "min_available_gib": 17.170608520507812
+        }
+      }
+    },
+    {
+      "file": "baseline-ctx12000-c3-t0-r1.json",
+      "context": 12000,
+      "c": 3,
+      "repeat": 1,
+      "state": "short-task-0",
+      "decode_tps": 101.91025346092127,
+      "e2e_tps": 90.84686538184697,
+      "ttft_seconds": 3.0315011339844204,
+      "decode_seconds": 29.496541298984084,
+      "accepted_draft_tokens": 2026,
+      "draft_tokens": 3150,
+      "spec_steps": 1050,
+      "acceptance_rate": 0.6431746031746032,
+      "mean_acceptance_length": 2.9295238095238094,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 37.95625,
+          "decode_clock_mhz": 2515.0,
+          "decode_temp_c": 69.125,
+          "samples": 8,
+          "min_available_gib": 12.714130401611328
+        },
+        "rank1": {
+          "decode_power_w": 32.68125,
+          "decode_clock_mhz": 2489.0,
+          "decode_temp_c": 67.0,
+          "samples": 8,
+          "min_available_gib": 17.173065185546875
+        }
+      }
+    },
+    {
+      "file": "baseline-ctx12000-c3-t1-r0.json",
+      "context": 12000,
+      "c": 3,
+      "repeat": 0,
+      "state": "short-task-1",
+      "decode_tps": 99.98178438238351,
+      "e2e_tps": 90.12159927500447,
+      "ttft_seconds": 1.8652600779896602,
+      "decode_seconds": 29.995463858998846,
+      "accepted_draft_tokens": 2012,
+      "draft_tokens": 3183,
+      "spec_steps": 1061,
+      "acceptance_rate": 0.6321080741438894,
+      "mean_acceptance_length": 2.8963242224316685,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 39.2425,
+          "decode_clock_mhz": 2513.375,
+          "decode_temp_c": 70.0,
+          "samples": 8,
+          "min_available_gib": 12.723674774169922
+        },
+        "rank1": {
+          "decode_power_w": 33.51625,
+          "decode_clock_mhz": 2488.25,
+          "decode_temp_c": 67.125,
+          "samples": 8,
+          "min_available_gib": 17.179458618164062
+        }
+      }
+    },
+    {
+      "file": "baseline-ctx12000-c3-t1-r1.json",
+      "context": 12000,
+      "c": 3,
+      "repeat": 1,
+      "state": "short-task-1",
+      "decode_tps": 97.53027581054214,
+      "e2e_tps": 88.20941165308055,
+      "ttft_seconds": 3.0194168850430287,
+      "decode_seconds": 30.493095352023374,
+      "accepted_draft_tokens": 1995,
+      "draft_tokens": 3234,
+      "spec_steps": 1078,
+      "acceptance_rate": 0.6168831168831169,
+      "mean_acceptance_length": 2.8506493506493507,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 39.54875,
+          "decode_clock_mhz": 2513.375,
+          "decode_temp_c": 70.125,
+          "samples": 8,
+          "min_available_gib": 12.707714080810547
+        },
+        "rank1": {
+          "decode_power_w": 33.865,
+          "decode_clock_mhz": 2489.0,
+          "decode_temp_c": 68.0,
+          "samples": 8,
+          "min_available_gib": 17.193218231201172
+        }
+      }
+    },
+    {
+      "file": "baseline-ctx12000-c4-t0-r0.json",
+      "context": 12000,
+      "c": 4,
+      "repeat": 0,
+      "state": "short-task-0",
+      "decode_tps": 113.53766139858816,
+      "e2e_tps": 101.98936321266436,
+      "ttft_seconds": 3.8109530819638167,
+      "decode_seconds": 34.67571862501791,
+      "accepted_draft_tokens": 2654,
+      "draft_tokens": 4317,
+      "spec_steps": 1439,
+      "acceptance_rate": 0.6147787815612694,
+      "mean_acceptance_length": 2.844336344683808,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 44.03666666666667,
+          "decode_clock_mhz": 2489.0,
+          "decode_temp_c": 72.0,
+          "samples": 9,
+          "min_available_gib": 12.70760726928711
+        },
+        "rank1": {
+          "decode_power_w": 38.897777777777776,
+          "decode_clock_mhz": 2489.0,
+          "decode_temp_c": 70.0,
+          "samples": 9,
+          "min_available_gib": 17.172931671142578
+        }
+      }
+    },
+    {
+      "file": "baseline-ctx12000-c4-t0-r1.json",
+      "context": 12000,
+      "c": 4,
+      "repeat": 1,
+      "state": "short-task-0",
+      "decode_tps": 112.37983199628519,
+      "e2e_tps": 101.48181759824371,
+      "ttft_seconds": 3.82325120549649,
+      "decode_seconds": 35.72705109696835,
+      "accepted_draft_tokens": 2654,
+      "draft_tokens": 4329,
+      "spec_steps": 1443,
+      "acceptance_rate": 0.6130746130746131,
+      "mean_acceptance_length": 2.8392238392238394,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 43.39,
+          "decode_clock_mhz": 2489.0,
+          "decode_temp_c": 72.66666666666667,
+          "samples": 9,
+          "min_available_gib": 12.4656982421875
+        },
+        "rank1": {
+          "decode_power_w": 38.83222222222222,
+          "decode_clock_mhz": 2489.0,
+          "decode_temp_c": 70.88888888888889,
+          "samples": 9,
+          "min_available_gib": 17.18576431274414
+        }
+      }
+    },
+    {
+      "file": "baseline-ctx12000-c4-t1-r0.json",
+      "context": 12000,
+      "c": 4,
+      "repeat": 0,
+      "state": "short-task-1",
+      "decode_tps": 111.1163882221008,
+      "e2e_tps": 100.39587386259497,
+      "ttft_seconds": 3.8229021779843606,
+      "decode_seconds": 35.24232620099792,
+      "accepted_draft_tokens": 2624,
+      "draft_tokens": 4419,
+      "spec_steps": 1473,
+      "acceptance_rate": 0.5937995021498077,
+      "mean_acceptance_length": 2.781398506449423,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 43.34888888888889,
+          "decode_clock_mhz": 2489.0,
+          "decode_temp_c": 72.44444444444444,
+          "samples": 9,
+          "min_available_gib": 12.439594268798828
+        },
+        "rank1": {
+          "decode_power_w": 38.949999999999996,
+          "decode_clock_mhz": 2489.0,
+          "decode_temp_c": 71.0,
+          "samples": 9,
+          "min_available_gib": 16.58945083618164
+        }
+      }
+    },
+    {
+      "file": "baseline-ctx12000-c4-t1-r1.json",
+      "context": 12000,
+      "c": 4,
+      "repeat": 1,
+      "state": "short-task-1",
+      "decode_tps": 115.52290263000596,
+      "e2e_tps": 100.18492136453074,
+      "ttft_seconds": 3.806848098000046,
+      "decode_seconds": 34.27026078698691,
+      "accepted_draft_tokens": 2661,
+      "draft_tokens": 4311,
+      "spec_steps": 1437,
+      "acceptance_rate": 0.6172581767571329,
+      "mean_acceptance_length": 2.851774530271399,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 43.30888888888889,
+          "decode_clock_mhz": 2489.0,
+          "decode_temp_c": 72.0,
+          "samples": 9,
+          "min_available_gib": 12.62807846069336
+        },
+        "rank1": {
+          "decode_power_w": 38.86777777777778,
+          "decode_clock_mhz": 2489.0,
+          "decode_temp_c": 70.88888888888889,
+          "samples": 9,
+          "min_available_gib": 16.594234466552734
+        }
+      }
+    },
+    {
+      "file": "gb10-sizing-fixed-v1-262144-ctx262144-c4-r0.json",
+      "context": 262144,
+      "c": 4,
+      "repeat": 0,
+      "state": "cold_unique_contexts",
+      "decode_tps": 107.58867978161598,
+      "e2e_tps": 7.965925107917562,
+      "ttft_seconds": 475.31810167399817,
+      "decode_seconds": 36.518711893993896,
+      "accepted_draft_tokens": 2696,
+      "draft_tokens": 4174,
+      "spec_steps": 1393,
+      "acceptance_rate": 0.6459032103497844,
+      "mean_acceptance_length": 2.935391241923905,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 47.448,
+          "decode_clock_mhz": 2485.1,
+          "decode_temp_c": 79.4,
+          "samples": 10,
+          "min_available_gib": 11.034248352050781
+        },
+        "rank1": {
+          "decode_power_w": 41.575,
+          "decode_clock_mhz": 2463.0,
+          "decode_temp_c": 77.0,
+          "samples": 10,
+          "min_available_gib": 16.663536071777344
+        }
+      },
+      "prefix_hits": 0.0,
+      "marker_checks_passed": 4
+    },
+    {
+      "file": "gb10-sizing-fixed-v1-262144-ctx262144-c4-r1.json",
+      "context": 262144,
+      "c": 4,
+      "repeat": 1,
+      "state": "reused_unique_contexts",
+      "decode_tps": 107.10317119425868,
+      "e2e_tps": 93.74936125805641,
+      "ttft_seconds": 4.247369578486541,
+      "decode_seconds": 36.64690742798848,
+      "accepted_draft_tokens": 2663,
+      "draft_tokens": 4274,
+      "spec_steps": 1426,
+      "acceptance_rate": 0.6230697239120262,
+      "mean_acceptance_length": 2.8674614305750348,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 45.039,
+          "decode_clock_mhz": 2489.0,
+          "decode_temp_c": 76.5,
+          "samples": 10,
+          "min_available_gib": 11.482372283935547
+        },
+        "rank1": {
+          "decode_power_w": 40.098,
+          "decode_clock_mhz": 2463.0,
+          "decode_temp_c": 75.0,
+          "samples": 10,
+          "min_available_gib": 17.203819274902344
+        }
+      },
+      "prefix_hits": 1036800.0,
+      "marker_checks_passed": 4
+    },
+    {
+      "file": "gb10-sizing-fixed-v1-262144-ctx262144-c4-r2.json",
+      "context": 262144,
+      "c": 4,
+      "repeat": 2,
+      "state": "reused_unique_contexts",
+      "decode_tps": 109.82292221507184,
+      "e2e_tps": 94.63757729710956,
+      "ttft_seconds": 4.195029380498454,
+      "decode_seconds": 35.79398472298635,
+      "accepted_draft_tokens": 2682,
+      "draft_tokens": 4223,
+      "spec_steps": 1408,
+      "acceptance_rate": 0.6350935354013735,
+      "mean_acceptance_length": 2.9048295454545454,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 45.838,
+          "decode_clock_mhz": 2487.1,
+          "decode_temp_c": 75.0,
+          "samples": 10,
+          "min_available_gib": 11.504344940185547
+        },
+        "rank1": {
+          "decode_power_w": 40.571,
+          "decode_clock_mhz": 2463.0,
+          "decode_temp_c": 74.0,
+          "samples": 10,
+          "min_available_gib": 17.164016723632812
+        }
+      },
+      "prefix_hits": 1036800.0,
+      "marker_checks_passed": 4
+    },
+    {
+      "file": "gb10-sizing-fixed-v1-262144-ctx262144-c4-r3.json",
+      "context": 262144,
+      "c": 4,
+      "repeat": 3,
+      "state": "reused_unique_contexts",
+      "decode_tps": 108.1255299561465,
+      "e2e_tps": 93.95917226961373,
+      "ttft_seconds": 4.255375794513384,
+      "decode_seconds": 36.68883751699468,
+      "accepted_draft_tokens": 2667,
+      "draft_tokens": 4260,
+      "spec_steps": 1422,
+      "acceptance_rate": 0.6260563380281691,
+      "mean_acceptance_length": 2.8755274261603376,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 44.17666666666667,
+          "decode_clock_mhz": 2489.0,
+          "decode_temp_c": 74.0,
+          "samples": 9,
+          "min_available_gib": 10.786922454833984
+        },
+        "rank1": {
+          "decode_power_w": 39.516666666666666,
+          "decode_clock_mhz": 2463.0,
+          "decode_temp_c": 73.0,
+          "samples": 9,
+          "min_available_gib": 16.99530792236328
+        }
+      },
+      "prefix_hits": 1036800.0,
+      "marker_checks_passed": 4
+    },
+    {
+      "file": "gb10-sizing-fixed-v1-65536-ctx65536-c4-r0.json",
+      "context": 65536,
+      "c": 4,
+      "repeat": 0,
+      "state": "cold_unique_contexts",
+      "decode_tps": 118.04204513890893,
+      "e2e_tps": 29.97890384118842,
+      "ttft_seconds": 101.75968366698362,
+      "decode_seconds": 33.48806770797819,
+      "accepted_draft_tokens": 2702,
+      "draft_tokens": 4182,
+      "spec_steps": 1394,
+      "acceptance_rate": 0.646102343376375,
+      "mean_acceptance_length": 2.938307030129125,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 43.52333333333333,
+          "decode_clock_mhz": 2489.0,
+          "decode_temp_c": 72.66666666666667,
+          "samples": 9,
+          "min_available_gib": 12.006244659423828
+        },
+        "rank1": {
+          "decode_power_w": 39.187777777777775,
+          "decode_clock_mhz": 2473.8888888888887,
+          "decode_temp_c": 72.88888888888889,
+          "samples": 9,
+          "min_available_gib": 16.636516571044922
+        }
+      },
+      "prefix_hits": 0.0,
+      "marker_checks_passed": 4
+    },
+    {
+      "file": "gb10-sizing-fixed-v1-65536-ctx65536-c4-r1.json",
+      "context": 65536,
+      "c": 4,
+      "repeat": 1,
+      "state": "reused_unique_contexts",
+      "decode_tps": 118.29231742529763,
+      "e2e_tps": 104.64528842719415,
+      "ttft_seconds": 3.8300853414693847,
+      "decode_seconds": 33.62855751399184,
+      "accepted_draft_tokens": 2692,
+      "draft_tokens": 4221,
+      "spec_steps": 1407,
+      "acceptance_rate": 0.6377635631366975,
+      "mean_acceptance_length": 2.9132906894100925,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 43.36,
+          "decode_clock_mhz": 2495.5555555555557,
+          "decode_temp_c": 72.0,
+          "samples": 9,
+          "min_available_gib": 12.186134338378906
+        },
+        "rank1": {
+          "decode_power_w": 39.46222222222222,
+          "decode_clock_mhz": 2489.0,
+          "decode_temp_c": 72.11111111111111,
+          "samples": 9,
+          "min_available_gib": 16.659809112548828
+        }
+      },
+      "prefix_hits": 249600.0,
+      "marker_checks_passed": 4
+    },
+    {
+      "file": "gb10-sizing-fixed-v1-65536-ctx65536-c4-r2.json",
+      "context": 65536,
+      "c": 4,
+      "repeat": 2,
+      "state": "reused_unique_contexts",
+      "decode_tps": 119.21704590823298,
+      "e2e_tps": 106.2063084694355,
+      "ttft_seconds": 3.8384429559810087,
+      "decode_seconds": 33.24189061898505,
+      "accepted_draft_tokens": 2694,
+      "draft_tokens": 4206,
+      "spec_steps": 1402,
+      "acceptance_rate": 0.6405135520684736,
+      "mean_acceptance_length": 2.921540656205421,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 43.81875,
+          "decode_clock_mhz": 2514.25,
+          "decode_temp_c": 72.0,
+          "samples": 8,
+          "min_available_gib": 11.97909164428711
+        },
+        "rank1": {
+          "decode_power_w": 39.2875,
+          "decode_clock_mhz": 2485.75,
+          "decode_temp_c": 71.875,
+          "samples": 8,
+          "min_available_gib": 16.660961151123047
+        }
+      },
+      "prefix_hits": 249600.0,
+      "marker_checks_passed": 4
+    },
+    {
+      "file": "gb10-sizing-fixed-v1-65536-ctx65536-c4-r3.json",
+      "context": 65536,
+      "c": 4,
+      "repeat": 3,
+      "state": "reused_unique_contexts",
+      "decode_tps": 116.95517982888732,
+      "e2e_tps": 104.20368724616574,
+      "ttft_seconds": 3.8350406440149527,
+      "decode_seconds": 33.48291204997804,
+      "accepted_draft_tokens": 2678,
+      "draft_tokens": 4263,
+      "spec_steps": 1421,
+      "acceptance_rate": 0.6281961060286183,
+      "mean_acceptance_length": 2.8845883180858554,
+      "preemptions": 0.0,
+      "telemetry": {
+        "rank0": {
+          "decode_power_w": 43.92333333333333,
+          "decode_clock_mhz": 2512.1111111111113,
+          "decode_temp_c": 72.11111111111111,
+          "samples": 9,
+          "min_available_gib": 12.04022216796875
+        },
+        "rank1": {
+          "decode_power_w": 39.28666666666667,
+          "decode_clock_mhz": 2489.0,
+          "decode_temp_c": 72.0,
+          "samples": 9,
+          "min_available_gib": 16.66114044189453
+        }
+      },
+      "prefix_hits": 249600.0,
+      "marker_checks_passed": 4
+    }
+  ],
+  "limits": "Repeated runs on one service start per build; output trajectories may differ. No repair-quality evaluation."
+}

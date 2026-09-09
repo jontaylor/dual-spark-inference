@@ -74,6 +74,12 @@ if opts.get('kv_cache_accounting'):
     env['GB10_KV_ACCOUNTING'] = '1'
 if opts.get('fair_prefill'):
     env['GB10_FAIR_PREFILL'] = '1'
+if opts.get('prefill_remainder'):
+    env['GB10_PREFILL_REMAINDER'] = '1'
+if opts.get('qsa_score_profile'):
+    env['GB10_QSA_SCORE'] = '1'
+if opts.get('qsa_sparse_profile'):
+    env['GB10_QSA_SPARSE'] = '1'
 if opts.get('bf16_kernels'):
     env['GB10_BF16_PLANS'] = '/opt/gb10/bf16_plans.json'
 if opts.get('moe_sparse_activation'):

@@ -1,0 +1,16 @@
+{
+  "size": 98304,
+  "shards": [
+    49152,
+    49152
+  ],
+  "corpus_tokens": 5504810,
+  "observed_distinct": 49501,
+  "coverage": 0.9987748895965528,
+  "word_boundary_variants": 135028,
+  "variant_weight": "max(1, independent corpus word frequency // 10)",
+  "vocabulary_sha256": "b645b968553bbcbd4d0f958a2726789afbedde9896682e97899d9c4146b174ef",
+  "status": "selected for production after C1/C2/C4 comparisons",
+  "tokenizer_sha256": "0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3",
+  "note": "Selected aggregate token-ID set; original corpus and private candidate files are not published."
+}

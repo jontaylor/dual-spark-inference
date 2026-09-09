@@ -114,6 +114,14 @@ args=[model_path,'--served-model-name',*cfg['served_names'],
  '--mm-encoder-tp-mode',cfg['mm_encoder_tp_mode'],
  '--speculative-config',json.dumps({'method':'mtp','num_speculative_tokens':cfg['mtp_tokens'],
      'use_local_argmax_reduction':bool(opts.get('draft_local_argmax', False))})]
+# Explicit policies keep changed defaults from altering this A/B test.
+if cfg.get('mamba_cache_mode'):
+    args += ['--mamba-cache-mode', cfg['mamba_cache_mode']]
+if 'prefix_cache_retention_interval' in cfg:
+    interval = cfg['prefix_cache_retention_interval']
+    args += ['--prefix-cache-retention-interval', 'None' if interval is None else str(interval)]
+if cfg.get('per_request_spec_decode_metrics'):
+    args += ['--per-request-spec-decode-metrics', cfg['per_request_spec_decode_metrics']]
 tc={'ple_embedding_dtype':'float8_e4m3fn'}
 if cfg['yarn_factor'] is not None:
     tc['rope_parameters']={'rope_type':'yarn','factor':cfg['yarn_factor'],'original_max_position_embeddings':262144}

@@ -76,13 +76,14 @@ async def request(session,prepared):
     payload={'model':'qwen3.8-flash-next','messages':messages,'max_tokens':args.output,'temperature':0,
              'stream':True,'stream_options':{'include_usage':True,'continuous_usage_stats':True},
              'chat_template_kwargs':{'enable_thinking':False}}
-    wall_start=time.time();start=time.monotonic();first=None;usage=None;text='';finish=None;timeline=[]
+    wall_start=time.time();start=time.monotonic();first=None;usage=None;text='';finish=None;timeline=[];request_metrics=None
     async with session.post(args.base+'/v1/chat/completions',json=payload) as response:
         response.raise_for_status()
         async for raw in response.content:
             line=raw.decode().strip()
             if not line.startswith('data: ') or line=='data: [DONE]':continue
             data=json.loads(line[6:])
+            if data.get('metrics'):request_metrics=data['metrics']
             if data.get('usage'):
                 usage=data['usage']
                 timeline.append([time.monotonic(),usage['completion_tokens']])
@@ -96,7 +97,7 @@ async def request(session,prepared):
     if not usage:raise RuntimeError('No authoritative completion-token usage in stream')
     return {'wall_start':wall_start,'start':start,'first':first,'end':end,'elapsed':end-start,
             'ttft':None if first is None else first-start,'usage':usage,'prepared_prompt_tokens':count,
-            'finish_reason':finish,'marker_found':marker in text,'text':text,'token_timeline':timeline}
+            'metrics':request_metrics,'finish_reason':finish,'marker_found':marker in text,'text':text,'token_timeline':timeline}
 
 async def main():
     timeout=aiohttp.ClientTimeout(total=14400,sock_read=7200)

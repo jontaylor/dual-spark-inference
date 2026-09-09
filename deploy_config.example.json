@@ -1,7 +1,7 @@
 {
   "model_id": "Qwen/Qwen3.8-Flash-Next-FP8",
   "revision": "236dfdf285828023ca3bcd3f37366c58a3469b13",
-  "image": "vllm-gb10:v029-candidate",
+  "image": "vllm-gb10:v029-pr-batch",
   "head_ip": "10.0.0.1",
   "worker_ip": "10.0.0.2",
   "interface": "enp1s0f0np0",

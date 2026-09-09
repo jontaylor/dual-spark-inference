@@ -6,8 +6,8 @@ The inference changes live in the pinned
 [vllm-gb10](https://github.com/jontaylor/vllm-gb10) `server` submodule.
 
 This candidate branch uses official vLLM **0.29.0**, with the corresponding
-ARM64 release image and selected Mia/GB10 changes. Serving validation is in
-progress. The validated earlier deployment remains on `main` and the
+ARM64 release image and selected Mia/GB10 changes. The first baseline failed prefix reuse; the PR bundle is under
+serving validation. The validated earlier deployment remains on `main` and the
 `gb10-2026-09-09` tag. See [the migration record](docs/v029-migration.md).
 
 ## Selected configuration
@@ -65,7 +65,7 @@ Allow roughly 8 GiB/node for the OS. Model weights and a local packed PLE table
 must fit on each node's NVMe; they are not downloaded by cloning this repository.
 
 ```bash
-git clone --branch gb10/v0.29.0 --recurse-submodules https://github.com/jontaylor/dual-spark-inference.git
+git clone --branch gb10/v0.29.0-pr-batch --recurse-submodules https://github.com/jontaylor/dual-spark-inference.git
 cd dual-spark-inference
 cp deploy_config.example.json deploy_config.json
 python3 -m venv .venv

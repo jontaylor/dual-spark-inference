@@ -1,6 +1,6 @@
 # Official vLLM 0.29.0 migration — 2026-09-09
 
-Status: combined baseline under serving validation; PR comparison pending.
+Status: baseline rejected for inconsistent prefix reuse; PR bundle under serving validation.
 
 ## Comparison design
 
@@ -69,7 +69,20 @@ model rename. It was fixed, and the CPU test now exercises that optional import
 path before a checkpoint load. No serving result was recorded from that attempt.
 
 Nine targeted PR CPU regressions passed after adapting a helper absent from
-0.29.0. Serving and throughput measurements will be recorded here when complete.
+0.29.0. The PR image also passed 16 upstream convolution gather/state-preservation
+GPU cases and all five chunked verification-score checks.
+
+The baseline passed API/authentication, arithmetic, tools and streaming. CUDA
+graph allocation was 0.32 GiB against a 0.44 GiB reservation; the cache reported
+1,409,197 logical tokens and 1,015 usable physical blocks. The 12K prefix check
+failed: identical replay hit zero cached tokens, while a growing follow-up hit
+9,600. All five returned the correct structured answer; identical and continued
+outputs respectively matched their cold controls. The prefix assertion stopped
+the suite before throughput/full-context tests. This candidate is not selected
+for deployment. We proceeded to the prepared PR bundle rather than spending a
+full capacity run on a candidate that had already failed a required check.
+
+PR-bundle serving and throughput measurements will be recorded when complete.
 
 ## Rollback
 

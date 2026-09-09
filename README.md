@@ -5,6 +5,11 @@ Reproducible deployment tooling for two DGX Spark / GB10 machines, derived from
 The inference changes live in the pinned
 [vllm-gb10](https://github.com/jontaylor/vllm-gb10) `server` submodule.
 
+This candidate branch uses official vLLM **0.29.0**, with the corresponding
+ARM64 release image and selected Mia/GB10 changes. Serving validation is in
+progress. The validated earlier deployment remains on `main` and the
+`gb10-2026-09-09` tag. See [the migration record](docs/v029-migration.md).
+
 ## Selected configuration
 
 | Setting | Value |
@@ -20,6 +25,8 @@ The inference changes live in the pinned
 | GPU memory utilisation | 0.76 |
 | PLE | Each node's local NVMe, Mia's packed mmap format with FP8 rows |
 | Graphs | Full decode graphs; profiling disabled |
+| Runner/cache policy | V2; Mamba align; semantic-only prefix retention |
+| Speculative metrics | Per-request summary |
 | API port | 30001; credential supplied through a local file |
 
 The 8,192-token budget is shared across eligible requests. Actual non-final
@@ -28,8 +35,10 @@ prefill chunks respect the 1,600-token state alignment; C1 typically receives
 Optimisation flags enable code from the server submodule; stock vLLM with the
 same settings does not reproduce this deployment.
 
-After the recurrent-cache fix, cold and warm full-context C4 completed without
-preemption. See [the capacity and throughput report](docs/cache-fix-2026-09-09.md).
+On the earlier deployment, the recurrent-cache fix allowed cold and warm
+full-context C4 to complete without preemption. These are reference results,
+not measurements of this candidate. See
+[the capacity and throughput report](docs/cache-fix-2026-09-09.md).
 The original end-to-end repair workload has not been rerun after these changes.
 
 ## Repository responsibilities
@@ -40,10 +49,11 @@ The original end-to-end repair workload has not been rerun after these changes.
 - Host-local ignored files: `deploy_config.json`, verification records,
   generated `files/`, credentials, checkpoints, packed tables and raw captures.
 
-The server repository records an unresolved upstream Git revision in the pinned
-release image. Its exact affected modules are preserved and hash-verified;
-the first release is an image-based source-overlay build, not a complete
-from-source reconstruction of the original vLLM image.
+The server branch starts at upstream `v0.29.0` (`98dff2a8`) and includes the
+full corresponding Python source. Its Dockerfile uses the native libraries
+from the matching official ARM64 wheel and compiles our small PLE helpers.
+This supplies traceable upstream ancestry while retaining the original tagged
+deployment as a rollback point.
 
 ## Prepare each node
 
@@ -55,7 +65,7 @@ Allow roughly 8 GiB/node for the OS. Model weights and a local packed PLE table
 must fit on each node's NVMe; they are not downloaded by cloning this repository.
 
 ```bash
-git clone --recurse-submodules https://github.com/jontaylor/dual-spark-inference.git
+git clone --branch gb10/v0.29.0 --recurse-submodules https://github.com/jontaylor/dual-spark-inference.git
 cd dual-spark-inference
 cp deploy_config.example.json deploy_config.json
 python3 -m venv .venv
@@ -121,24 +131,25 @@ Model startup normally takes around 11–12 minutes on the measured setup.
 After readiness, run `.venv/bin/python smoke_api.py results/smoke.json`
 (create `results/` first). Services are not automatically enabled at boot.
 
-## Optional image with the changes included
+## Build the candidate image
 
-The default uses the already-validated source-overlay layout. A Dockerfile is
-also provided so the modifications and native helpers can be included in an
-image rather than supplied as individual runtime mounts:
+Build the maintained Python source and PLE helpers on the matching pinned
+official image. The candidate configuration uses `server_in_image: true`:
 
 ```bash
-docker build --build-arg SOURCE_REVISION="$(git -C server rev-parse HEAD)" \
+docker build -f server/docker/Dockerfile.gb10 \
+  --build-arg SOURCE_REVISION="$(git -C server rev-parse HEAD)" \
   -t vllm-gb10:local server
-bash server/tools/test_image.sh vllm-gb10:local
+bash server/tools/test_gb10_image.sh vllm-gb10:local
 ```
 
 Transfer that image to the worker and verify matching image IDs. Set `image`
 to its local tag or immutable registry digest and `server_in_image` to `true`
 on both nodes. Checkpoint metadata, credentials, draft IDs and the PLE table
-remain host inputs. This image has build and CPU-regression coverage; it has
-not replaced the measured production deployment or undergone a new full-model
-serving test. Changing image/weights/shapes requires revalidation.
+remain host inputs. GPU differential checks are available with the test script's
+`--gpu` option while the model service is stopped. Serving/performance status
+is recorded in the migration report. Changing image/weights/shapes requires
+revalidation.
 
 ## Benchmark and retain a release
 

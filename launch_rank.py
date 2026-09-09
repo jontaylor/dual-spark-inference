@@ -39,29 +39,7 @@ if existing.returncode == 0 and '--dry-run' not in sys.argv:
         raise RuntimeError('Rank container already running')
     subprocess.run(['docker','rm',name],check=True)
 pkg = '/usr/local/lib/python3.12/dist-packages/vllm'
-overlays = {
-    'gb10/deep_gemm_moe.py': 'model_executor/layers/fused_moe/experts/deep_gemm_moe.py',
-    'gb10/moe_gemm.py': 'model_executor/layers/fused_moe/experts/gb10_moe_gemm.py',
-    'gb10/sparse_activation.py': 'model_executor/layers/fused_moe/experts/gb10_sparse_activation.py',
-    'gb10/scheduler.py': 'v1/core/sched/scheduler.py',
-    'gb10/single_type_kv_cache_manager.py': 'v1/core/single_type_kv_cache_manager.py',
-    'gb10/kv_cache_interface.py': 'v1/kv_cache_interface.py',
-    'gb10/kv_accounting.py': 'v1/core/sched/gb10_kv_accounting.py',
-    'gb10/prefill.py': 'v1/core/sched/gb10_prefill.py',
-    'gb10/low_latency_gemm.py': 'models/qwen3_8_flash_next/nvidia/low_latency_gemm.py',
-    'mtp_patched.py': 'models/qwen3_8_flash_next/nvidia/mtp.py',
-    'gb10/ple_gather.py': 'models/qwen3_8_flash_next/nvidia/gb10_ple_gather.py',
-    'ple_layer_patched.py': 'models/qwen3_8_flash_next/nvidia/ple_layer.py',
-    'gb10/mapped_ple.py': 'v1/ple_offload/gb10_mapped.py',
-    'ple_offload/worker.py': 'v1/ple_offload/worker.py',
-    'ple_offload/connector.py': 'v1/ple_offload/connector.py',
-    'ple_offload/protocol.py': 'v1/ple_offload/protocol.py',
-    'ple_offload/ple_offload_layer.py': 'model_executor/layers/ple_offload_layer.py',
-    'gpu_worker_patched.py': 'v1/worker/gpu_worker.py',
-    'modelopt_patched.py': 'model_executor/layers/quantization/modelopt.py',
-    'qsa_ops_patched.py': 'models/qwen3_8_flash_next/nvidia/ops/qsa.py',
-    'qsa_nvidia_patched.py': 'models/qwen3_8_flash_next/nvidia/qsa.py',
-}
+overlays = json.loads((root/'server/overlays.json').read_text())
 cmd=['docker','run','--name',name,'--gpus','all','--network','host','--ipc','host',
      '--cap-add','SYS_NICE','--ulimit','memlock=-1','--ulimit','stack=67108864',
      '--device','/dev/infiniband:/dev/infiniband','--entrypoint','python3']

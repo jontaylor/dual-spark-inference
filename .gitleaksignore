@@ -1,0 +1,2 @@
+# Reviewed false positive: SHA256 of the public pinned tokenizer.json, verified against the checkpoint.
+45f8a772d973eef79440c0f81640a576d8deab83:assets/draft-vocab-provenance.json:generic-api-key:14

@@ -9,15 +9,18 @@ import time
 from pathlib import Path
 
 root=Path(__file__).resolve().parent
-rank=int(sys.argv[1]);name=f'qwen38-next-qwen-fp8-r{rank}'
+rank=int(sys.argv[1]);name=f'qwen38-kv-paging-r{rank}'
 cfg=load_config(root)
+from paging_ops import prepare_disk, verify_runtime
+verify_runtime(cfg, root, rank)
+prepare_disk(cfg, root, rank)
 stopping=False
 def stop(signum=None,frame=None):
     global stopping
     stopping=True
 signal.signal(signal.SIGTERM,stop)
 signal.signal(signal.SIGINT,stop)
-proc=subprocess.Popen(['python3',str(root/'launch_rank.py'),str(rank)])
+proc=subprocess.Popen([sys.executable,str(root/'launch_rank.py'),str(rank)])
 low=0;iteration=0;failed=False
 try:
     while proc.poll() is None and not stopping:

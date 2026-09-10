@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Launch one rank using pinned Qwen FP8 weights and local immutable overlays."""
+"""Launch a pinned NVIDIA NVFP4 rank with the same-process request pager."""
 import json
 from runtime_config import load_config, model_snapshot, resolve_path
 import subprocess
@@ -10,19 +10,19 @@ root = Path(__file__).resolve().parent
 cfg = load_config(root)
 rank = int(sys.argv[1])
 assert rank in (0,1)
-assert cfg['model_id'] == 'Qwen/Qwen3.8-Flash-Next-FP8'
+assert cfg['model_id'] == 'nvidia/Qwen3.8-Flash-Next-NVFP4'
 assert cfg['kv_cache_dtype'] == 'bfloat16'
 assert cfg['tensor_parallel_size'] == 2 and cfg['expert_parallel'] and cfg['mtp_tokens'] == 3
 snapshot = (resolve_path(cfg['paths']['hf_cache'], root) / ('models--' + cfg['model_id'].replace('/', '--')) / 'snapshots')/cfg['revision']
 source_config = json.loads((snapshot/'config.json').read_text())
-assert source_config['quantization_config']['quant_method'] == 'fp8'
-assert not (snapshot/'hf_quant_config.json').exists(), 'Unexpected ModelOpt sidecar'
-manifest = json.loads((root/'verified-checkpoint.json').read_text())
+assert source_config['quantization_config']['quant_method'] == 'modelopt'
+assert any(x.get('quant_algo') == 'NVFP4' for x in source_config['quantization_config']['quantized_layers'].values())
+manifest = json.loads((Path(__file__).resolve().parent/'verified-checkpoint.json').read_text())
 assert manifest['revision'] == cfg['revision'] and manifest['model_id'] == cfg['model_id']
 for f in manifest['files']:
     if (snapshot/f['name']).stat().st_size != f['size']:
         raise RuntimeError(f'Checkpoint changed since verification: {f["name"]}')
-name = 'qwen38-next-qwen-fp8-r'+str(rank)
+name = 'qwen38-kv-paging-r'+str(rank)
 packed_dir=resolve_path(cfg['paths']['ple_cache'], root)/cfg['revision']
 metadata_files=list(packed_dir.glob('*.packed_u8.json'))
 if len(metadata_files)!=1:
@@ -39,7 +39,9 @@ if existing.returncode == 0 and '--dry-run' not in sys.argv:
         raise RuntimeError('Rank container already running')
     subprocess.run(['docker','rm',name],check=True)
 pkg = '/usr/local/lib/python3.12/dist-packages/vllm'
-overlays = json.loads((root/'server/overlays.json').read_text())
+overlays = {} if cfg.get('server_in_image') else json.loads((root/'server/overlays.json').read_text())
+from paging_ops import verify_runtime
+verify_runtime(cfg, root, rank)
 cmd=['docker','run','--name',name,'--gpus','all','--network','host','--ipc','host',
      '--cap-add','SYS_NICE','--ulimit','memlock=-1','--ulimit','stack=67108864',
      '--device','/dev/infiniband:/dev/infiniband','--entrypoint','python3']
@@ -48,14 +50,18 @@ def mount(src,dest):
     cmd.extend(['-v',f'{src}:{dest}:ro'])
 model_path = '/model-store/snapshots/' + cfg['revision']
 mount(snapshot.parent.parent,'/model-store')
+mount(root/'files/paging/rank_local_disk.py', f'{pkg}/v1/kv_offload/rank_local_disk.py')
 mount(root/'container_entry.py','/opt/container_entry.py')
+mount(root/'files/paging/aligned_connector.py', f'{pkg}/distributed/kv_transfer/kv_connector/v1/gb10_aligned_offloading_connector.py')
+cmd.extend(['-v', str(resolve_path(cfg['kv_paging']['disk_root'], root))+':/kv-disk'])
+mount(Path(__file__).resolve().parent/'files/modelopt_patched.py', f'{pkg}/model_executor/layers/quantization/modelopt.py')
 if not cfg.get('server_in_image'):
     mount(root/'files/gb10','/opt/gb10')
 mount(packed_dir,'/ple-cache')
 if not cfg.get('server_in_image'):
     for file,dest in overlays.items():mount(root/'files'/file,f'{pkg}/{dest}')
 for src,dest in [('config_patched.json','config.json'),('hf_quant_config_patched.json','hf_quant_config.json')]:
-    if (root/'files'/src).exists():mount(root/'files'/src,model_path+'/'+dest)
+    if (Path(__file__).resolve().parent/'files'/src).exists():mount(Path(__file__).resolve().parent/'files'/src,model_path+'/'+dest)
 if rank==0:mount(resolve_path(cfg['api_key_file'], root),'/run/secrets/inference-api-key')
 cache=resolve_path(cfg['paths']['runtime_cache'], root);cache.mkdir(parents=True,exist_ok=True)
 cmd.extend(['-v',f'{cache}:/root/.cache/vllm'])
@@ -69,6 +75,9 @@ env={
  'VLLM_HOST_IP':cfg['head_ip'] if rank==0 else cfg['worker_ip'],
  'VLLM_ENGINE_READY_TIMEOUT_S':'3600','VLLM_ALLOW_LONG_MAX_MODEL_LEN':'1',
 }
+if 'enable_roce_allreduce' in cfg:
+    assert isinstance(cfg['enable_roce_allreduce'], bool)
+    env['VLLM_ENABLE_ROCE_ALLREDUCE'] = str(int(cfg['enable_roce_allreduce']))
 opts = cfg.get('optimizations', {})
 if opts.get('kv_cache_accounting'):
     env['GB10_KV_ACCOUNTING'] = '1'
@@ -102,6 +111,15 @@ if cfg.get('profiling', {}).get('enabled'):
     profile_dir.mkdir(parents=True, mode=0o700, exist_ok=True)
     cmd.extend(['-v', f'{profile_dir}:/profiles'])
     env['QWEN_NSYS_CAPTURE'] = '1'
+if cfg.get('routing_capture'):
+    routing = cfg['routing_capture']
+    source = resolve_path(routing['source_root'], root)
+    for relative in routing['files']:
+        mount(source / relative, f'{pkg}/{relative}')
+    output = resolve_path(routing['output_root'], root)
+    output.mkdir(parents=True, mode=0o700, exist_ok=True)
+    cmd.extend(['-v', f'{output}:/routing-capture'])
+    env['GB10_ROUTING_RECORD_DIR'] = '/routing-capture'
 for k,v in env.items():cmd.extend(['-e',f'{k}={v}'])
 args=[model_path,'--served-model-name',*cfg['served_names'],
  '--tensor-parallel-size','2','--nnodes','2','--node-rank',str(rank),
@@ -134,10 +152,24 @@ if cfg.get('profiling', {}).get('enabled'):
 if cfg['graph_mode']=='eager':args+=['--enforce-eager']
 elif cfg['graph_mode']=='full_decode':
     args+=['--compilation-config',json.dumps({'mode':0,'cudagraph_mode':'FULL_DECODE_ONLY',
-        'cudagraph_capture_sizes':[4*s for s in range(1,cfg['max_num_seqs']+1)]})]
+        'cudagraph_capture_sizes':cfg.get('cudagraph_capture_sizes', [4*s for s in range(1,cfg['max_num_seqs']+1)])})]
 else:raise ValueError('Unknown graph mode')
 if rank:args+=['--headless']
 else:args+=['--host','0.0.0.0','--port',str(cfg['port'])]
+paging = cfg.get('kv_paging', {})
+args += ['--kernel-config', '{"enable_flashinfer_autotune":false}', '--kv-cache-memory', str(paging.get('kv_bytes_per_rank', 4294967296)), '--kv-transfer-config', json.dumps({
+ 'kv_connector':'GB10AlignedOffloadingConnector',
+ 'kv_connector_module_path':'vllm.distributed.kv_transfer.kv_connector.v1.gb10_aligned_offloading_connector',
+ 'kv_role':'kv_both','kv_connector_extra_config':{
+  'spec_name':'RankLocalDiskOffloadingSpec',
+  'spec_module_path':'vllm.v1.kv_offload.rank_local_disk',
+  'disk_bytes_per_rank':paging['disk_bytes_per_rank'],'staging_blocks':paging.get('staging_blocks',4),'root_dir':'/kv-disk','verify_transfers':paging.get('verify_transfers',True),
+  **({'parking_block_budget': paging['block_budget']} if 'block_budget' in paging else {}),
+  'parking_test_after_generated_tokens':paging.get('force_after_generated', 0),
+  'blocks_per_chunk':1,'offload_prompt_only':False}})]
+args += ['--no-async-scheduling', '--scheduler-cls', 'vllm.v1.core.sched.gb10_parking_scheduler.GB10ParkingScheduler']
+for filename, target in [('parking_scheduler_base.py','scheduler.py'),('parking_policy.py','parking_policy.py'),('gb10_parking_scheduler.py','gb10_parking_scheduler.py')]:
+    mount(root/'files/paging'/filename, f'{pkg}/v1/core/sched/{target}')
 cmd += [cfg['image'],'/opt/container_entry.py',*args]
 print(json.dumps({'rank':rank,'image':cfg['image'],'model':cfg['model_id'],'revision':cfg['revision'],
                   'port':cfg['port'],'ple':'local_nvme_mmap','args':args}),flush=True)

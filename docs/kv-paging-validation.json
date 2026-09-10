@@ -1,0 +1,29 @@
+{
+  "source_revision": "fd57262a959793b46565b56a116f7e6a5e1a34c6",
+  "max_num_seqs": 24,
+  "max_model_len": 262144,
+  "peak_active": 24.0,
+  "short_completed": 24,
+  "short_tokens_each": 256,
+  "long_usage": {
+    "prompt_tokens": 262016,
+    "total_tokens": 262144,
+    "completion_tokens": 128,
+    "prompt_tokens_details": null,
+    "completion_tokens_details": null
+  },
+  "long_elapsed_seconds": 114.23158330004662,
+  "authentication": "missing and wrong key rejected",
+  "chat_old_alias": "passed",
+  "preemptions_max": 0.0,
+  "reservation": {
+    "budget_blocks": 1880,
+    "unit_tokens": 32768,
+    "unit_blocks": 21,
+    "fixed_blocks": 26,
+    "physical_blocks": 1897
+  },
+  "cpu_tests": "28 passed, 3 GPU skipped",
+  "gpu_disk_tests": "6 passed per node",
+  "operations_tests": "4 passed"
+}

@@ -1,15 +1,15 @@
 {
-  "model_id": "Qwen/Qwen3.8-Flash-Next-FP8",
-  "revision": "236dfdf285828023ca3bcd3f37366c58a3469b13",
-  "image": "vllm-gb10:v029-pr-replay",
-  "head_ip": "10.0.0.1",
-  "worker_ip": "10.0.0.2",
+  "model_id": "nvidia/Qwen3.8-Flash-Next-NVFP4",
+  "revision": "fc694b54fb0174e0913e6adf86691ef85a4ead47",
+  "image": "vllm-gb10:v029-roce",
+  "head_ip": "192.168.100.10",
+  "worker_ip": "192.168.100.11",
   "interface": "enp1s0f0np0",
   "ib_hca": "=rocep1s0f0",
   "master_port": 50000,
   "port": 30001,
   "max_model_len": 262144,
-  "max_num_seqs": 4,
+  "max_num_seqs": 24,
   "max_num_batched_tokens": 8192,
   "gpu_memory_utilization": 0.76,
   "kv_cache_dtype": "bfloat16",
@@ -23,17 +23,17 @@
     "qwen3.8-flash-next",
     "ornith-1.5-35b-a3b-tp2"
   ],
-  "api_key_file": "~/.config/dual-spark-inference/api-key",
+  "api_key_file": "/home/jon/.config/qwen38/api-key",
   "profiling": {
     "enabled": false,
     "max_iterations": 40,
     "nsys_root": "/opt/nvidia/nsight-systems/2025.3.2",
-    "output_root": "./profiles"
+    "output_root": "/home/jon/qwen38-profiles"
   },
   "optimizations": {
     "ple_gather_threads": 8,
     "draft_local_argmax": true,
-    "draft_vocab_file": "assets/draft-vocab-broad98304.txt",
+    "draft_vocab_file": "/home/jon/gb10-optimisation/20260910-user98/qwen-mtp-98304.txt",
     "bf16_kernels": true,
     "fair_prefill": true,
     "draft_head_gemm": true,
@@ -46,12 +46,36 @@
     "kv_cache_accounting": true
   },
   "paths": {
-    "hf_cache": "~/.cache/huggingface/hub",
-    "ple_cache": "~/.cache/vllm/ple_cache",
-    "runtime_cache": "~/.cache/vllm-gb10-v029"
+    "hf_cache": "/home/jon/.cache/huggingface/hub",
+    "ple_cache": "/home/jon/.cache/vllm/ple_cache",
+    "runtime_cache": "/home/jon/.cache/vllm-gb10-v029"
   },
   "server_in_image": true,
   "mamba_cache_mode": "align",
-  "prefix_cache_retention_interval": 0,
-  "per_request_spec_decode_metrics": "summary"
+  "prefix_cache_retention_interval": 1600,
+  "per_request_spec_decode_metrics": "summary",
+  "cudagraph_capture_sizes": [
+    4,
+    8,
+    12,
+    16,
+    24,
+    32,
+    48,
+    64,
+    80,
+    96
+  ],
+  "enable_roce_allreduce": true,
+  "kv_paging": {
+    "kv_bytes_per_rank": 42949672960,
+    "disk_bytes_per_rank": 51539607552,
+    "disk_root": "/home/jon/.cache/vllm-gb10-kv-paging",
+    "staging_blocks": 4,
+    "verify_transfers": true
+  },
+  "image_ids": [
+    "sha256:16a35249b2acbcac8e9714de5b36f9b50462706954dc946724e76c174fcc16b3",
+    "sha256:fa1ce39c655d5eebdde24f928a0a8aeb9088da765e6b94e5610b40ded30105be"
+  ]
 }

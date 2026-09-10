@@ -4,7 +4,8 @@
   "mia_single_repository": "https://github.com/MiaAI-Lab/Qwen3.8-Flash-Next-Single-DGX-Spark",
   "local_deployment_commit": "87923e07caee0bbb507ca6d4a3fd8692e3d6332f",
   "public_import": "Curated code, configuration and aggregate reports; original private experiment history remains local.",
-  "model_id": "Qwen/Qwen3.8-Flash-Next-FP8",
-  "model_revision": "236dfdf285828023ca3bcd3f37366c58a3469b13",
-  "baseline_image": "vllm/vllm-openai@sha256:fc120ece0a388cc0aa1caad4a9f1cd92113484ab7ec2fd0efadd62585be05bf8"
+  "model_id": "nvidia/Qwen3.8-Flash-Next-NVFP4",
+  "model_revision": "fc694b54fb0174e0913e6adf86691ef85a4ead47",
+  "baseline_image": "vllm/vllm-openai@sha256:fc120ece0a388cc0aa1caad4a9f1cd92113484ab7ec2fd0efadd62585be05bf8",
+  "paging_source_revision": "fd57262a959793b46565b56a116f7e6a5e1a34c6"
 }

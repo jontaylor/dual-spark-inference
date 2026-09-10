@@ -21,7 +21,7 @@ for value in (args.user, args.group, str(root), cfg['worker_ip']):
         raise SystemExit('Use simple paths and a hostname/IP without whitespace or systemd substitutions')
 args.output.mkdir(parents=True, exist_ok=True)
 common = f'''[Unit]
-Description=Qwen FP8 / BF16 KV on dual GB10
+Description=Qwen NVIDIA NVFP4 / BF16 KV with NVMe paging on dual GB10
 After=network-online.target docker.service
 Wants=network-online.target
 Requires=docker.service
@@ -39,7 +39,7 @@ for rank, name in [(0, 'qwen38-next-qwen-fp8'), (1, 'qwen38-next-qwen-fp8-worker
     text = common
     if rank == 0:
         text += f'ExecStartPre=/usr/bin/ssh -o BatchMode=yes -o ConnectTimeout=15 {cfg["worker_ip"]} sudo -n systemctl start qwen38-next-qwen-fp8-worker.service\n'
-    text += f'ExecStart=/usr/bin/python3 {root}/supervise_rank.py {rank}\n'
+    text += f'ExecStart={root}/.venv/bin/python {root}/supervise_rank.py {rank}\n'
     if rank == 0:
         text += f'ExecStopPost=-/usr/bin/ssh -o BatchMode=yes -o ConnectTimeout=15 {cfg["worker_ip"]} sudo -n systemctl stop qwen38-next-qwen-fp8-worker.service\n'
     text += '\n[Install]\nWantedBy=multi-user.target\n'

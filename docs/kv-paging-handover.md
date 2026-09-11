@@ -8,13 +8,13 @@ draft vocabulary, BF16 KV, RoCEnante and Mia's FP8 PLE mmap path.
 
 - Endpoint: `http://spark-1:30001/v1`; existing API key and served aliases.
 - Maximum context: **262,144 tokens**, including prompt and generation.
-- Maximum resident scheduler requests: **24**. Large requests can queue before
+- Maximum resident scheduler requests: **32**. Large requests can queue before
   this ceiling because admission uses actual physical cache reservations.
 - KV pool: **40 GiB per node**; NVMe cache budget: **48 GiB per node**.
 - Reservation growth: **32,768 tokens**; fixed recurrent-state and speculative
   allowances are charged separately. The measured budget is 1,880 blocks,
   with 21 blocks per token unit and 26 fixed blocks per request (1,897 physical
-  blocks including allocator headroom). Thus 24 small requests reserve 1,128
+  blocks including allocator headroom). Thus 32 small requests reserve 1,504
   blocks; nine eight-unit requests reserve 1,746. This is reservation arithmetic,
   not a measured nine-way full-context workload. A near-boundary speculative
   allowance can move a request into its next unit. The raw vLLM capacity report
@@ -149,3 +149,23 @@ The normal endpoint passed with the final 40GiB-per-node configuration:
 The server is left running with both systemd services active. The exact
 aggregate evidence is in `docs/kv-paging-validation.json`; full request and
 metric records remain local in `results/paging-handover/`.
+
+## Cached-token reporting and C32 update
+
+The current configuration sets `max_num_seqs=32` and enables
+`--enable-prompt-tokens-details`. MTP3 graph capture sizes extend to128 tokens
+for32 sequences. Context and40GiB KV/48GiB disk budgets are unchanged.
+The original C24 acceptance results above remain historical evidence.
+
+Chat/completion responses include `usage.prompt_tokens_details.cached_tokens`.
+For streamed responses, send `stream_options: {"include_usage": true}` and
+read the final usage chunk. Uncached prompt tokens are prompt_tokens minus
+cached_tokens; sum these values for a total and take their maximum for the
+largest uncached prompt. Missing/null cached counts mean unknown, not zero.
+The field measures initial prefix reuse, not additional parking replay work.
+
+Live verification on11September:32 simultaneous requests each completed256
+outputs, with zero preemptions. An11254-token chat prompt reported0cached
+tokens cold and9600cached tokens on repetition, in both ordinary and streamed
+responses (1654uncached). Evidence: `docs/c32-cached-token-validation.json`.
+The service is left running with the original port/key and262144context limit.

@@ -1,7 +1,7 @@
 # Dual-Spark inference: NVMe request paging
 
 This branch serves NVIDIA Qwen3.8-Flash-Next-NVFP4 with BF16 KV on two GB10 nodes,
-with a 24-request concurrency ceiling and a 262,144-token context limit.
+with a 32-request concurrency ceiling and a 262,144-token context limit.
 Reservation-based admission queues large requests according to physical cache
 capacity. Active requests can park on each node’s NVMe and resume from an
 aligned checkpoint with bounded replay.

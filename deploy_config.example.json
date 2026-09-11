@@ -9,7 +9,7 @@
   "master_port": 50000,
   "port": 30001,
   "max_model_len": 262144,
-  "max_num_seqs": 24,
+  "max_num_seqs": 32,
   "max_num_batched_tokens": 8192,
   "gpu_memory_utilization": 0.76,
   "kv_cache_dtype": "bfloat16",
@@ -64,7 +64,9 @@
     48,
     64,
     80,
-    96
+    96,
+    112,
+    128
   ],
   "enable_roce_allreduce": true,
   "kv_paging": {
@@ -77,5 +79,6 @@
   "image_ids": [
     "sha256:16a35249b2acbcac8e9714de5b36f9b50462706954dc946724e76c174fcc16b3",
     "sha256:fa1ce39c655d5eebdde24f928a0a8aeb9088da765e6b94e5610b40ded30105be"
-  ]
+  ],
+  "enable_prompt_tokens_details": true
 }

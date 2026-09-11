@@ -47,10 +47,10 @@ async def main():
                     assert response.status == 401, response.status
         task = asyncio.create_task(monitor())
         try:
-            small = await asyncio.gather(*(request(f'c24-{i:02}', f'Request {i}. Explain the benefits and limitations of database indexes in detail.', 256) for i in range(24)))
+            small = await asyncio.gather(*(request(f'c{CFG["max_num_seqs"]}-{i:02}', f'Request {i}. Explain the benefits and limitations of database indexes in detail.', 256) for i in range(CFG['max_num_seqs'])))
             peak = max(float(line.rsplit(' ', 1)[1]) for sample in samples for line in sample['metrics'] if 'num_requests_running{' in line)
-            assert peak == 24, peak
-            print('C24 peak active', peak, flush=True)
+            assert peak == CFG['max_num_seqs'], peak
+            print('Configured peak active', peak, flush=True)
             snapshot = Path(CFG['paths']['hf_cache']) / ('models--' + CFG['model_id'].replace('/', '--')) / 'snapshots' / CFG['revision']
             tok = Tokenizer.from_file(str(snapshot / 'tokenizer.json'))
             fixture = json.loads(Path('/home/jon/gb10-optimisation/20260910-placement-live/fixture-12000.json').read_text())['source']

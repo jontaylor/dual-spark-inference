@@ -142,6 +142,8 @@ if 'prefix_cache_retention_interval' in cfg:
 if cfg.get('per_request_spec_decode_metrics'):
     args += ['--per-request-spec-decode-metrics', cfg['per_request_spec_decode_metrics']]
 tc={'ple_embedding_dtype':'float8_e4m3fn'}
+if cfg.get('enable_prompt_tokens_details', False):
+    args += ['--enable-prompt-tokens-details']
 if cfg['yarn_factor'] is not None:
     tc['rope_parameters']={'rope_type':'yarn','factor':cfg['yarn_factor'],'original_max_position_embeddings':262144}
 args+=['--hf-overrides',json.dumps({'text_config':tc})]

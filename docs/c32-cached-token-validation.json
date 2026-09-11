@@ -1,0 +1,44 @@
+{
+  "peak_concurrency": 32.0,
+  "completed": 32,
+  "usage_checks": [
+    {
+      "prompt_tokens": 11254,
+      "total_tokens": 11256,
+      "completion_tokens": 2,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "created_cache_tokens": 0,
+        "multimodal_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      }
+    },
+    {
+      "prompt_tokens": 11254,
+      "total_tokens": 11256,
+      "completion_tokens": 2,
+      "prompt_tokens_details": {
+        "cached_tokens": 9600,
+        "created_cache_tokens": 0,
+        "multimodal_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      }
+    },
+    {
+      "prompt_tokens": 11254,
+      "total_tokens": 11256,
+      "completion_tokens": 2,
+      "prompt_tokens_details": {
+        "cached_tokens": 9600,
+        "created_cache_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      }
+    }
+  ]
+}

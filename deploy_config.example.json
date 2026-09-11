@@ -74,7 +74,8 @@
     "disk_bytes_per_rank": 51539607552,
     "disk_root": "/home/jon/.cache/vllm-gb10-kv-paging",
     "staging_blocks": 4,
-    "verify_transfers": true
+    "verify_transfers": true,
+    "completion_checkpoints": true
   },
   "image_ids": [
     "sha256:16a35249b2acbcac8e9714de5b36f9b50462706954dc946724e76c174fcc16b3",

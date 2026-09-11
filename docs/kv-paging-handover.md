@@ -181,3 +181,11 @@ extend an absolute proxy/client deadline.
 Live verification: a cold102400-token streamed completion emitted keepalive
 comments at10.02,20.02 and30.02seconds, then completed successfully at39.96s
 with cached-token usage details. Evidence: `docs/sse-keepalive-validation.json`.
+
+## Exact completion checkpoints
+
+`kv_paging.completion_checkpoints=true` adds a completion-only hybrid snapshot
+between aligned boundaries. Matching follow-ups can reuse all but the last
+unprocessed token, while active-request parking remains aligned. See
+[completion-checkpoints.md](completion-checkpoints.md) for state coverage,
+validation, eviction, and rollback details.

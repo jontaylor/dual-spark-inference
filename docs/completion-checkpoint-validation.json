@@ -1,0 +1,112 @@
+{
+  "server_revision": "235e81ecdc2bebbc4907535f8fc4479086054896",
+  "unit_tests_passed": 26,
+  "deployment_tests_passed": 4,
+  "context_limit": 262144,
+  "max_num_seqs": 32,
+  "cases": [
+    {
+      "prompt_tokens": 2917,
+      "cached_tokens": 2916,
+      "replay_tokens": 1,
+      "nearest_aligned_replay_tokens": 1317,
+      "cold_output_prefix_match": 32,
+      "output_tokens": 32
+    },
+    {
+      "prompt_tokens": 6019,
+      "cached_tokens": 6018,
+      "replay_tokens": 1,
+      "nearest_aligned_replay_tokens": 1219,
+      "cold_output_prefix_match": 32,
+      "output_tokens": 32
+    },
+    {
+      "prompt_tokens": 11035,
+      "cached_tokens": 11034,
+      "replay_tokens": 1,
+      "nearest_aligned_replay_tokens": 1435,
+      "cold_output_prefix_match": 32,
+      "output_tokens": 32
+    }
+  ],
+  "concurrent_followups": [
+    {
+      "prompt_tokens": 11935,
+      "total_tokens": 11967,
+      "completion_tokens": 32,
+      "prompt_tokens_details": {
+        "cached_tokens": 11034,
+        "created_cache_tokens": null,
+        "multimodal_tokens": null
+      },
+      "completion_tokens_details": null
+    },
+    {
+      "prompt_tokens": 11935,
+      "total_tokens": 11967,
+      "completion_tokens": 32,
+      "prompt_tokens_details": {
+        "cached_tokens": 11034,
+        "created_cache_tokens": null,
+        "multimodal_tokens": null
+      },
+      "completion_tokens_details": null
+    },
+    {
+      "prompt_tokens": 11935,
+      "total_tokens": 11967,
+      "completion_tokens": 32,
+      "prompt_tokens_details": {
+        "cached_tokens": 11034,
+        "created_cache_tokens": null,
+        "multimodal_tokens": null
+      },
+      "completion_tokens_details": null
+    },
+    {
+      "prompt_tokens": 11935,
+      "total_tokens": 11967,
+      "completion_tokens": 32,
+      "prompt_tokens_details": {
+        "cached_tokens": 11034,
+        "created_cache_tokens": null,
+        "multimodal_tokens": null
+      },
+      "completion_tokens_details": null
+    }
+  ],
+  "new_prefill_cold_output_prefix_match": 32,
+  "mismatch_cached_tokens": 8000,
+  "numerical_caveat": "Some cold/restored comparisons diverged (after 25 tokens initially and after 10 in the final 11K check). Repeated cold controls also diverged after 1 or 14 tokens. State transport is verified; general bit-exact numerical equivalence is not claimed.",
+  "final_rebuild_cases": [
+    {
+      "prompt_tokens": 1603,
+      "cached_tokens": 1602,
+      "replay_tokens": 1,
+      "cold_output_prefix_match": 32,
+      "output_tokens": 32
+    },
+    {
+      "prompt_tokens": 1600,
+      "cached_tokens": 1599,
+      "replay_tokens": 1,
+      "cold_output_prefix_match": 32,
+      "output_tokens": 32
+    },
+    {
+      "prompt_tokens": 11035,
+      "cached_tokens": 11034,
+      "replay_tokens": 1,
+      "cold_output_prefix_match": 10,
+      "output_tokens": 32
+    }
+  ],
+  "final_health": {
+    "both_services": "active",
+    "running_requests": 0,
+    "waiting_requests": 0,
+    "preemptions": 0,
+    "stage": "After final checks, before handover to user workload"
+  }
+}

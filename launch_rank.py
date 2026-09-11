@@ -50,6 +50,8 @@ def mount(src,dest):
     cmd.extend(['-v',f'{src}:{dest}:ro'])
 model_path = '/model-store/snapshots/' + cfg['revision']
 mount(snapshot.parent.parent,'/model-store')
+mount(root/'files/paging/completion.py', f'{pkg}/distributed/kv_transfer/kv_connector/v1/gb10_completion.py')
+mount(root/'files/paging/model_runner.py', f'{pkg}/v1/worker/gpu/model_runner.py')
 mount(root/'files/paging/rank_local_disk.py', f'{pkg}/v1/kv_offload/rank_local_disk.py')
 mount(root/'container_entry.py','/opt/container_entry.py')
 mount(root/'files/paging/aligned_connector.py', f'{pkg}/distributed/kv_transfer/kv_connector/v1/gb10_aligned_offloading_connector.py')
@@ -170,6 +172,7 @@ args += ['--kernel-config', '{"enable_flashinfer_autotune":false}', '--kv-cache-
   'disk_bytes_per_rank':paging['disk_bytes_per_rank'],'staging_blocks':paging.get('staging_blocks',4),'root_dir':'/kv-disk','verify_transfers':paging.get('verify_transfers',True),
   **({'parking_block_budget': paging['block_budget']} if 'block_budget' in paging else {}),
   'parking_test_after_generated_tokens':paging.get('force_after_generated', 0),
+  'completion_checkpoints':paging.get('completion_checkpoints',False),
   'blocks_per_chunk':1,'offload_prompt_only':False}})]
 args += ['--no-async-scheduling', '--scheduler-cls', 'vllm.v1.core.sched.gb10_parking_scheduler.GB10ParkingScheduler']
 for filename, target in [('parking_scheduler_base.py','scheduler.py'),('parking_policy.py','parking_policy.py'),('gb10_parking_scheduler.py','gb10_parking_scheduler.py')]:

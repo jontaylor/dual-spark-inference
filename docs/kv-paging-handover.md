@@ -169,3 +169,15 @@ outputs, with zero preemptions. An11254-token chat prompt reported0cached
 tokens cold and9600cached tokens on repetition, in both ordinary and streamed
 responses (1654uncached). Evidence: `docs/c32-cached-token-validation.json`.
 The service is left running with the original port/key and262144context limit.
+
+## SSE keepalives
+
+The launcher enables `--sse-keep-alive-interval 10`. Chat/completion SSE streams
+emit `: keep-alive` comments during idle periods. SSE-aware consumers should
+ignore comments as content while allowing their arrival to reset network read
+inactivity timers. This does not turn non-streaming requests into streams or
+extend an absolute proxy/client deadline.
+
+Live verification: a cold102400-token streamed completion emitted keepalive
+comments at10.02,20.02 and30.02seconds, then completed successfully at39.96s
+with cached-token usage details. Evidence: `docs/sse-keepalive-validation.json`.

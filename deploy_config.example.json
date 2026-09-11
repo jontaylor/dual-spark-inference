@@ -80,5 +80,6 @@
     "sha256:16a35249b2acbcac8e9714de5b36f9b50462706954dc946724e76c174fcc16b3",
     "sha256:fa1ce39c655d5eebdde24f928a0a8aeb9088da765e6b94e5610b40ded30105be"
   ],
-  "enable_prompt_tokens_details": true
+  "enable_prompt_tokens_details": true,
+  "sse_keep_alive_interval": 10
 }

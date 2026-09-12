@@ -20,3 +20,8 @@ Local runtime files and credentials are gitignored. No credentials are bundled.
 
 The previous release’s description is archived in
 [the v0.29 release record](docs/v029-release-readme.md).
+
+## September 12 QSA correctness backport
+
+Both Sparks were updated to `vllm-gb10:v029-roce-qsa55122` with the deterministic
+QSA top-k kernel. See the [source pins, build recipe and validation record](docs/qsa-55122/README.md).

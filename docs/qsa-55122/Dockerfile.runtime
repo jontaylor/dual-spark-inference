@@ -1,0 +1,7 @@
+ARG BASE_IMAGE=vllm-gb10:v029-roce
+FROM ${BASE_IMAGE}
+LABEL gb10.qsa.pr="https://github.com/vllm-project/vllm/pull/55122" \
+      gb10.qsa.upstream_revision="42db1ddbbd8916bfde6b002e195a7e0ef35b0450" \
+      gb10.qsa.native_base="98dff2a81d747d1dba01a47f939f48c3526d4206"
+COPY staged/vllm/_C_stable_libtorch.abi3.so /usr/local/lib/python3.12/dist-packages/vllm/_C_stable_libtorch.abi3.so
+COPY native-provenance.json /opt/gb10/qsa-native-provenance.json

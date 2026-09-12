@@ -1,0 +1,16 @@
+{
+  "stock": {
+    "image": "vllm-gb10:v029-roce",
+    "image_ids": [
+      "sha256:16a35249b2acbcac8e9714de5b36f9b50462706954dc946724e76c174fcc16b3",
+      "sha256:fa1ce39c655d5eebdde24f928a0a8aeb9088da765e6b94e5610b40ded30105be"
+    ]
+  },
+  "candidate": {
+    "image": "vllm-gb10:v029-roce-qsa55122",
+    "image_ids": [
+      "sha256:08b49fba4bf068e5d9b954253f2a05f181141ed7312c8508284cd25b74ba8ed8",
+      "sha256:08210cdb3627e126c861d0e44b3421f0a1bba0f519d07e6911a0287ceb7dbddd"
+    ]
+  }
+}

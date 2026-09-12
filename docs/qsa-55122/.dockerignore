@@ -1,0 +1,6 @@
+*
+!Dockerfile.runtime
+!native-provenance.json
+!staged/
+!staged/vllm/
+!staged/vllm/_C_stable_libtorch.abi3.so

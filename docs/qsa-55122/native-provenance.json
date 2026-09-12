@@ -1,0 +1,24 @@
+{
+  "upstream_pr": 55122,
+  "upstream_head": "42db1ddbbd8916bfde6b002e195a7e0ef35b0450",
+  "native_base": "98dff2a81d747d1dba01a47f939f48c3526d4206",
+  "built_at": "2026-09-12T20:17:18.027147+00:00",
+  "cuda": "13.0.88",
+  "torch": "2.13.0+cu130",
+  "compiler": "GCC 13.3.0",
+  "cmake": "3.31.6",
+  "architecture": "GB10 sm_121; CMake-selected compatible sm_120 and sm_120f kernels",
+  "cutlass": "v4.4.2",
+  "native_sha256": "1687b153cda9a88293abbe06ceb72b335df29372e2cf9f5cd6567539019ba491",
+  "source_sha256": {
+    "CMakeLists.txt": "75109357bb37a4354a6ed815d1e23385f3b642a3e0326555e8a5947ba701a9c9",
+    "csrc/libtorch_stable/topk.cu": "f2831e3d5da2ef0b98e04d0beb0883a94397fdaec069ba2527243e041a7cf1cc",
+    "csrc/libtorch_stable/persistent_topk.cuh": "94ad5ceb3966f83dab8e29a4c26eb1dd5701c0ce35aad0582f41e0456651d617",
+    "tests/kernels/test_top_k_per_row.py": "9a380a012d1aaf62bbd1e5f5743b3e8c65e5e92f066903fa7280f16b0bf18be9"
+  },
+  "workspace_bound_bytes": 172224,
+  "notes": [
+    "Launcher fallback adapted to v0.29; header clang-formatted; optional native-only CMake packaging switch.",
+    "Built against original native source base; runtime Python and separate MoE library retained."
+  ]
+}

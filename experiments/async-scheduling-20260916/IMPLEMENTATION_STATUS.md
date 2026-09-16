@@ -1,3 +1,7 @@
+> Shelved at the user's request on 16 September 2026.
+> Branch: `experiments/async-scheduling-20260916`. No async deployment or profiling restart is authorized by this artifact.
+> Resume only on a new user instruction; validation gates below remain open.
+
 # Async implementation checkpoint
 
 The goal remains incomplete. No async candidate is deployed.

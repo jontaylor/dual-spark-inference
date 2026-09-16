@@ -1,0 +1,6 @@
+--- /dev/null
++++ /home/jon/dual-spark-inference-kv-paging/experiments/allocation-deferral-implementation-20260914/deferral.py
+@@ -0,0 +1,3 @@
++"""Transient capacity dependency, not an allocation failure."""
++class AllocationDeferred(Exception):
++    pass

@@ -1,0 +1,53 @@
+"""Worker-lifetime content sharing for immutable rank-local checkpoint pages."""
+import os
+from pathlib import Path
+
+
+class ContentAddressedPages:
+    """Each logical slot remains an ordinary readable file via a hard link.
+
+    Fingerprints cover exactly the group's restored tensor spans. Bytes outside
+    those spans are staging padding and never restored. Group identity prevents
+    a page being mistaken for another layout. Callers serialize I/O, and slots
+    are recycled only after all readers/writers have released them.
+    """
+    def __init__(self, root):
+        self.root = Path(root)
+        self.blobs = self.root / 'content'
+        self.blobs.mkdir(exist_ok=False)
+        self.slots = {}
+        self.references = {}
+
+    def store(self, slot, group, digest, write_blob):
+        """Return True iff a new payload was written. write_blob must raise on failure."""
+        key = (group, digest.hex())
+        old = self.slots.get(slot)
+        path = self.root / f'slot-{slot}.bin'
+        blob = self.blobs / f'{group}-{digest.hex()}.bin'
+        if old == key:
+            # Preserve the existing inode, including when this is its only slot.
+            if not path.is_file() or not blob.is_file():
+                raise RuntimeError('Missing content-addressed checkpoint file')
+            return False
+        created = key not in self.references
+        if created:
+            try:
+                write_blob(str(blob))
+            except BaseException:
+                blob.unlink(missing_ok=True)
+                raise
+        # Do not release any old content before the new link is ready.
+        temporary = self.root / f'slot-{slot}.link'
+        temporary.unlink(missing_ok=True)
+        os.link(blob, temporary)
+        os.replace(temporary, path)
+        self.slots[slot] = key
+        self.references[key] = self.references.get(key, 0) + 1
+        if old is not None:
+            count = self.references[old] - 1
+            if count:
+                self.references[old] = count
+            else:
+                del self.references[old]
+                (self.blobs / f'{old[0]}-{old[1]}.bin').unlink()
+        return created

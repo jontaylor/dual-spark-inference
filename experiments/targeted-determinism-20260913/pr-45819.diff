@@ -1,0 +1,896 @@
+diff --git a/tests/v1/determinism/test_batch_invariance.py b/tests/v1/determinism/test_batch_invariance.py
+index 4a86a5826bc0..9c6d4aed10ed 100644
+--- a/tests/v1/determinism/test_batch_invariance.py
++++ b/tests/v1/determinism/test_batch_invariance.py
+@@ -11,6 +11,7 @@
+     TEST_MODEL,
+     _extract_step_logprobs,
+     _random_prompt,
++    get_attention_config,
+     skip_if_not_cuda,
+     skip_unsupported,
+ )
+@@ -55,7 +56,7 @@ def test_v1_generation_is_deterministic_across_batch_sizes_with_needle(
+     seed = int(os.getenv("VLLM_TEST_SEED", "12345"))
+     random.seed(seed)
+ 
+-    attention_config = {"backend": backend}
++    attention_config = get_attention_config(backend)
+     # Force the C++ RMSNorm implementation so we actually exercise the
+     # num_tokens-dependent block-size branches.
+     kernel_config = None
+@@ -186,159 +187,128 @@ def test_logprobs_bitwise_batch_invariance_bs1_vs_bsN(
+         print(f"BATCH INVARIANCE MODE: Disabling custom all-reduce (TP={tp_size})")
+         print(f"{'=' * 80}\n")
+ 
+-    llm = LLM(
+-        model=TEST_MODEL,
+-        tensor_parallel_size=tp_size,
+-        max_num_seqs=128,
+-        max_model_len=8192,
+-        dtype="auto",  # not everything is supported
+-        gpu_memory_utilization=0.9,
+-        attention_config={
+-            "backend": backend,
+-            "flex_attn_block_m": block_m,
+-            "flex_attn_block_n": block_n,
+-        },
+-    )
+-
+-    # Use more realistic prompts for better token generation
+-    prompts = [_random_prompt(10, 50) for _ in range(32)]
+-
+-    # TODO: Update prompts to have ragged lengths in order to test chunked prefill
+-    #       The above tests are not currently long enough to exercise chunking.
+-    # prompts = (
+-    #     [_random_prompt(10, 50) for _ in range(28)]
+-    #     + [_random_prompt(256, 512) for _ in range(50)]
+-    #     + [_random_prompt(2048, 4096) for _ in range(50)]
+-    # )
+-
+-    sp = SamplingParams(
+-        temperature=0.6,
+-        top_p=1.0,
+-        max_tokens=16,
+-        seed=1234,
+-        logprobs=5,
+-    )
+-
+-    # BS=1: run prompts individually and collect logprobs per step.
+-    print("\n" + "=" * 80)
+-    print("STARTING BS=1 RUNS (each prompt individually)")
+-    print("=" * 80 + "\n")
+-
+-    bs1_logprobs_per_prompt = []
+-    bs1_tokens_per_prompt = []
+-    for idx, p in enumerate(prompts):
+-        print(f"\n[BS=1] Running prompt {idx}/{len(prompts)} - Preview: {p[:80]}...")
+-        outs = llm.generate([p], sp, use_tqdm=False)
+-        assert len(outs) == 1
+-        step_logprobs, token_ids = _extract_step_logprobs(outs[0])
+-        if step_logprobs is None:
+-            pytest.skip(
+-                "Logits are not available on RequestOutput; "
+-                "enable logprobs return to run this test."
+-            )
+-        bs1_logprobs_per_prompt.append(step_logprobs)
+-        bs1_tokens_per_prompt.append(token_ids)
+-        print(f"[BS=1] Prompt {idx} generated tokens: {token_ids}")
+-
+-    # BS=N: run prompts in a batch and collect logprobs per step for each
+-    # prompt.
+-    print("\n" + "=" * 80)
+-    print(f"STARTING BS={len(prompts)} RUN (all prompts batched)")
+-    print("=" * 80 + "\n")
++    _attn_cfg = {
++        **get_attention_config(backend),
++        **(
++            {"flex_attn_block_m": block_m, "flex_attn_block_n": block_n}
++            if backend != "GDN_ATTN"
++            else {}
++        ),
++    }
++    llm = None
++    prompts: list[str] = []
++    failed_prompts: list[dict] = []
++    try:
++        llm = LLM(
++            model=TEST_MODEL,
++            tensor_parallel_size=tp_size,
++            max_num_seqs=128,
++            max_model_len=8192,
++            dtype="auto",  # not everything is supported
++            gpu_memory_utilization=0.9,
++            enforce_eager=backend == "GDN_ATTN",
++            attention_config=_attn_cfg,
++        )
+ 
+-    outs_batched = llm.generate(prompts, sp, use_tqdm=False)
+-    assert len(outs_batched) == len(prompts)
+-    bsN_logprobs_per_prompt = []
+-    bsN_tokens_per_prompt = []
++        # Use more realistic prompts for better token generation
++        prompts = [_random_prompt(10, 50) for _ in range(32)]
++
++        # TODO: Update prompts to have ragged lengths in order to test chunked prefill
++        #       The above tests are not currently long enough to exercise chunking.
++        # prompts = (
++        #     [_random_prompt(10, 50) for _ in range(28)]
++        #     + [_random_prompt(256, 512) for _ in range(50)]
++        #     + [_random_prompt(2048, 4096) for _ in range(50)]
++        # )
++
++        sp = SamplingParams(
++            temperature=0.6,
++            top_p=1.0,
++            max_tokens=16,
++            seed=1234,
++            logprobs=5,
++        )
+ 
+-    print(f"\n[BS={len(prompts)}] Processing batched outputs...")
+-    for idx, o in enumerate(outs_batched):
+-        tokens = o.outputs[0].token_ids if o.outputs else "N/A"
+-        print(f"[BS={len(prompts)}] Prompt {idx} generated tokens: {tokens}")
+-        step_logprobs, token_ids = _extract_step_logprobs(o)
+-        if step_logprobs is None:
+-            pytest.skip(
+-                "Logits are not available on RequestOutput; "
+-                "enable logprobs return to run this test."
+-            )
+-        bsN_logprobs_per_prompt.append(step_logprobs)
+-        bsN_tokens_per_prompt.append(token_ids)
++        # BS=1: run prompts individually and collect logprobs per step.
++        print("\n" + "=" * 80)
++        print("STARTING BS=1 RUNS (each prompt individually)")
++        print("=" * 80 + "\n")
+ 
+-    # Compare step-by-step logprobs for each prompt between BS=1 and BS=N runs.
+-    failed_prompts = []
+-    for i, (logprobs_bs1, logprobs_bsN, tokens_bs1, tokens_bsN) in enumerate(
+-        zip(
+-            bs1_logprobs_per_prompt,
+-            bsN_logprobs_per_prompt,
+-            bs1_tokens_per_prompt,
+-            bsN_tokens_per_prompt,
+-        )
+-    ):
+-        if len(logprobs_bs1) != len(logprobs_bsN):
+-            reason = (
+-                f"Different number of steps: {len(logprobs_bs1)} (BS=1) "
+-                f"vs {len(logprobs_bsN)} (BS=N)"
+-            )
+-            failed_prompts.append(
+-                {
+-                    "prompt_idx": i,
+-                    "step": "all",
+-                    "reason": reason,
+-                    "prompt_preview": prompts[i][:100],
+-                    "bs1_tokens": tokens_bs1,
+-                    "bsN_tokens": tokens_bsN,
+-                }
++        bs1_logprobs_per_prompt = []
++        bs1_tokens_per_prompt = []
++        for idx, p in enumerate(prompts):
++            print(
++                f"\n[BS=1] Running prompt {idx}/{len(prompts)} - Preview: {p[:80]}..."
+             )
+-            continue
+-
+-        # Check if tokens match first
+-        if tokens_bs1 != tokens_bsN:
+-            failed_prompts.append(
+-                {
+-                    "prompt_idx": i,
+-                    "step": "sampling",
+-                    "reason": "Different tokens sampled",
+-                    "prompt_preview": prompts[i][:100],
+-                    "bs1_tokens": tokens_bs1,
+-                    "bsN_tokens": tokens_bsN,
+-                    "bs1_all_logprobs": [
+-                        logprobs_bs1[s].tolist() for s in range(len(logprobs_bs1))
+-                    ],
+-                    "bsN_all_logprobs": [
+-                        logprobs_bsN[s].tolist() for s in range(len(logprobs_bsN))
+-                    ],
+-                }
++            outs = llm.generate([p], sp, use_tqdm=False)
++            assert len(outs) == 1
++            step_logprobs, token_ids = _extract_step_logprobs(outs[0])
++            if step_logprobs is None:
++                pytest.skip(
++                    "Logits are not available on RequestOutput; "
++                    "enable logprobs return to run this test."
++                )
++            bs1_logprobs_per_prompt.append(step_logprobs)
++            bs1_tokens_per_prompt.append(token_ids)
++            print(f"[BS=1] Prompt {idx} generated tokens: {token_ids}")
++
++        # BS=N: run prompts in a batch and collect logprobs per step for each
++        # prompt.
++        print("\n" + "=" * 80)
++        print(f"STARTING BS={len(prompts)} RUN (all prompts batched)")
++        print("=" * 80 + "\n")
++
++        outs_batched = llm.generate(prompts, sp, use_tqdm=False)
++        assert len(outs_batched) == len(prompts)
++        bsN_logprobs_per_prompt = []
++        bsN_tokens_per_prompt = []
++
++        print(f"\n[BS={len(prompts)}] Processing batched outputs...")
++        for idx, o in enumerate(outs_batched):
++            tokens = o.outputs[0].token_ids if o.outputs else "N/A"
++            print(f"[BS={len(prompts)}] Prompt {idx} generated tokens: {tokens}")
++            step_logprobs, token_ids = _extract_step_logprobs(o)
++            if step_logprobs is None:
++                pytest.skip(
++                    "Logits are not available on RequestOutput; "
++                    "enable logprobs return to run this test."
++                )
++            bsN_logprobs_per_prompt.append(step_logprobs)
++            bsN_tokens_per_prompt.append(token_ids)
++
++        # Compare step-by-step logprobs for each prompt between BS=1 and BS=N runs.
++        for i, (logprobs_bs1, logprobs_bsN, tokens_bs1, tokens_bsN) in enumerate(
++            zip(
++                bs1_logprobs_per_prompt,
++                bsN_logprobs_per_prompt,
++                bs1_tokens_per_prompt,
++                bsN_tokens_per_prompt,
+             )
+-            continue
+-
+-        for t, (a, b) in enumerate(zip(logprobs_bs1, logprobs_bsN)):
+-            if a.shape != b.shape:
++        ):
++            if len(logprobs_bs1) != len(logprobs_bsN):
++                reason = (
++                    f"Different number of steps: {len(logprobs_bs1)} (BS=1) "
++                    f"vs {len(logprobs_bsN)} (BS=N)"
++                )
+                 failed_prompts.append(
+                     {
+                         "prompt_idx": i,
+-                        "step": t,
+-                        "reason": f"Shape mismatch: {a.shape} vs {b.shape}",
++                        "step": "all",
++                        "reason": reason,
+                         "prompt_preview": prompts[i][:100],
+                         "bs1_tokens": tokens_bs1,
+                         "bsN_tokens": tokens_bsN,
+                     }
+                 )
+-                break
++                continue
+ 
+-            if not torch.equal(a, b):
+-                max_diff = torch.abs(a - b).max().item()
+-                # Print which token failed
+-                print(f"\n[DIVERGENCE] Prompt {i}, Token {t}: max_diff={max_diff:.6e}")
+-                bs1_tok = tokens_bs1[t] if t < len(tokens_bs1) else "N/A"
+-                bsN_tok = tokens_bsN[t] if t < len(tokens_bsN) else "N/A"
+-                print(f"  Token IDs: bs1={bs1_tok}, bsN={bsN_tok}")
+-                print(f"  BS=1 logprob: {a.tolist()}")
+-                print(f"  BS=N logprob: {b.tolist()}")
++            # Check if tokens match first
++            if tokens_bs1 != tokens_bsN:
+                 failed_prompts.append(
+                     {
+                         "prompt_idx": i,
+-                        "step": t,
+-                        "reason": f"Bitwise mismatch (max_diff={max_diff:.6e})",
++                        "step": "sampling",
++                        "reason": "Different tokens sampled",
+                         "prompt_preview": prompts[i][:100],
+                         "bs1_tokens": tokens_bs1,
+                         "bsN_tokens": tokens_bsN,
+@@ -350,9 +320,58 @@ def test_logprobs_bitwise_batch_invariance_bs1_vs_bsN(
+                         ],
+                     }
+                 )
+-                break
++                continue
+ 
+-    # Print summary of all failures
++            for t, (a, b) in enumerate(zip(logprobs_bs1, logprobs_bsN)):
++                if a.shape != b.shape:
++                    failed_prompts.append(
++                        {
++                            "prompt_idx": i,
++                            "step": t,
++                            "reason": f"Shape mismatch: {a.shape} vs {b.shape}",
++                            "prompt_preview": prompts[i][:100],
++                            "bs1_tokens": tokens_bs1,
++                            "bsN_tokens": tokens_bsN,
++                        }
++                    )
++                    break
++
++                if not torch.equal(a, b):
++                    max_diff = torch.abs(a - b).max().item()
++                    # Print which token failed
++                    print(
++                        f"\n[DIVERGENCE] Prompt {i}, Token {t}: max_diff={max_diff:.6e}"
++                    )
++                    bs1_tok = tokens_bs1[t] if t < len(tokens_bs1) else "N/A"
++                    bsN_tok = tokens_bsN[t] if t < len(tokens_bsN) else "N/A"
++                    print(f"  Token IDs: bs1={bs1_tok}, bsN={bsN_tok}")
++                    print(f"  BS=1 logprob: {a.tolist()}")
++                    print(f"  BS=N logprob: {b.tolist()}")
++                    failed_prompts.append(
++                        {
++                            "prompt_idx": i,
++                            "step": t,
++                            "reason": f"Bitwise mismatch (max_diff={max_diff:.6e})",
++                            "prompt_preview": prompts[i][:100],
++                            "bs1_tokens": tokens_bs1,
++                            "bsN_tokens": tokens_bsN,
++                            "bs1_all_logprobs": [
++                                logprobs_bs1[s].tolist()
++                                for s in range(len(logprobs_bs1))
++                            ],
++                            "bsN_all_logprobs": [
++                                logprobs_bsN[s].tolist()
++                                for s in range(len(logprobs_bsN))
++                            ],
++                        }
++                    )
++                    break
++    finally:
++        with contextlib.suppress(Exception):
++            if llm is not None:
++                llm.shutdown()
++
++    # Print summary of all failures (after LLM shutdown so GPU memory is freed).
+     if failed_prompts:
+         print(f"\n{'=' * 80}")
+         fail_msg = (
+@@ -381,7 +400,6 @@ def test_logprobs_bitwise_batch_invariance_bs1_vs_bsN(
+                     print(f"    Step {step_idx}: {logprobs}")
+         print(f"{'=' * 80}\n")
+ 
+-        # Fail the test with summary
+         msg = (
+             f"Batch invariance violated in {len(failed_prompts)}/"
+             f"{len(prompts)} prompts. See output above for details."
+@@ -409,7 +427,8 @@ def test_simple_generation(backend):
+         max_model_len=2048,
+         dtype="auto",
+         enable_prefix_caching=False,
+-        attention_config={"backend": backend},
++        enforce_eager=backend == "GDN_ATTN",
++        attention_config=get_attention_config(backend),
+     )
+ 
+     prompt = "the capital of france is"
+@@ -473,7 +492,8 @@ def test_logprobs_without_batch_invariance_should_fail(
+         max_num_seqs=32,
+         max_model_len=8192,
+         dtype="auto",
+-        attention_config={"backend": backend},
++        enforce_eager=backend == "GDN_ATTN",
++        attention_config=get_attention_config(backend),
+     )
+ 
+     # build ragged prompts to change shapes significantly across BS=1 vs BS=N
+@@ -672,7 +692,19 @@ def test_decode_logprobs_match_prefill_logprobs(
+ 
+     This ensures that the logprobs from decode are consistent with what
+     we would get if we ran prefill on each prefix.
++
++    Skipped for GDN/Qwen3.5 models: GDN prefill uses the chunked delta
++    rule while GDN decode uses a recurrent state update — two distinct
++    algorithms whose floating-point outputs are not expected to match
++    bitwise.
+     """
++    from utils import config as _test_cfg
++
++    if getattr(_test_cfg, "model_type", "") == "qwen3_5":
++        pytest.skip(
++            "GDN recurrent decode and chunked-prefill use different "
++            "algorithms; bitwise logprob match is not expected."
++        )
+     seed = int(os.getenv("VLLM_TEST_SEED", "12345"))
+     random.seed(seed)
+     tp_size = int(os.getenv("VLLM_TEST_TP_SIZE", "1"))
+@@ -692,7 +724,7 @@ def test_decode_logprobs_match_prefill_logprobs(
+         max_num_seqs=32,
+         max_model_len=8192,
+         dtype="auto",
+-        attention_config={"backend": backend},
++        attention_config=get_attention_config(backend),
+     )
+ 
+     # Use a few test prompts
+diff --git a/tests/v1/determinism/test_online_batch_invariance.py b/tests/v1/determinism/test_online_batch_invariance.py
+index de80e4918c1e..e3c2ac130513 100644
+--- a/tests/v1/determinism/test_online_batch_invariance.py
++++ b/tests/v1/determinism/test_online_batch_invariance.py
+@@ -153,8 +153,11 @@ def test_logprobs_bitwise_batch_invariance_bs1_vs_bsN(
+     server_args: list[str] = [
+         "--max-model-len=8192",
+         "--max-num-seqs=32",
+-        f"--attention-backend={backend}",
+     ]
++    # GDN_ATTN is auto-selected by model architecture and is not a valid
++    # AttentionBackendEnum value, so --attention-backend must not be set.
++    if backend != "GDN_ATTN":
++        server_args.append(f"--attention-backend={backend}")
+     if tp_size:
+         server_args += ["-tp", tp_size]
+ 
+diff --git a/tests/v1/determinism/utils.py b/tests/v1/determinism/utils.py
+index f03ea05b4331..c56cceb56a07 100644
+--- a/tests/v1/determinism/utils.py
++++ b/tests/v1/determinism/utils.py
+@@ -28,6 +28,9 @@ class DeviceConfig(NamedTuple):
+         and current_platform.has_device_capability(80),
+         # FlashInfer backend temporarily disabled due to invariant CTA sizes.
+         # See FlashInfer issue #2424
++        # GDN_ATTN is excluded from the default list: it is only valid for
++        # models with GDN layers (model_type="qwen3_5" or dual_chunk_attention).
++        # The model-specific override below adds it when appropriate.
+         backends=["FLASH_ATTN", "TRITON_ATTN", "FLEX_ATTENTION"],
+     ),
+     "xpu": DeviceConfig(
+@@ -39,19 +42,28 @@ class DeviceConfig(NamedTuple):
+ DEFAULT_MODEL = "Qwen/Qwen3-1.7B"
+ TEST_MODEL = os.getenv("VLLM_TEST_MODEL", DEFAULT_MODEL)
+ 
+-# Override backends for MLA models (MLA only supported on CUDA).
+-if os.getenv("VLLM_TEST_MODEL"):
+-    config = get_config(TEST_MODEL, trust_remote_code=False)
+-    if ModelArchConfigConvertorBase(config, config.get_text_config()).is_deepseek_mla():
+-        DEVICE_BACKENDS["cuda"] = DeviceConfig(
+-            available=DEVICE_BACKENDS["cuda"].available,
+-            backends=["TRITON_MLA"]
+-            + (["FLASH_ATTN_MLA"] if flash_attn_supports_mla() else []),
+-        )
+-        DEVICE_BACKENDS["xpu"] = DeviceConfig(
+-            available=DEVICE_BACKENDS["xpu"].available,
+-            backends=[],
+-        )
++# Override backends based on the model architecture.
++config = get_config(TEST_MODEL, trust_remote_code=False)
++if ModelArchConfigConvertorBase(config, config.get_text_config()).is_deepseek_mla():
++    DEVICE_BACKENDS["cuda"] = DeviceConfig(
++        available=DEVICE_BACKENDS["cuda"].available,
++        backends=["TRITON_MLA"]
++        + (["FLASH_ATTN_MLA"] if flash_attn_supports_mla() else []),
++    )
++    DEVICE_BACKENDS["xpu"] = DeviceConfig(
++        available=DEVICE_BACKENDS["xpu"].available,
++        backends=[],
++    )
++# GDN_ATTN is for Qwen3.5 models (model_type="qwen3_5") and
++# Qwen3-Next hybrid models (dual_chunk_attention_config present).
++elif getattr(config, "model_type", "") == "qwen3_5" or (
++    hasattr(config, "dual_chunk_attention_config")
++    and config.dual_chunk_attention_config is not None
++):
++    DEVICE_BACKENDS["cuda"] = DeviceConfig(
++        available=DEVICE_BACKENDS["cuda"].available,
++        backends=["GDN_ATTN"],
++    )
+ 
+ # Only include backends for devices that are actually available.
+ BACKENDS: list[str] = sorted(
+@@ -133,3 +145,18 @@ def _extract_step_logprobs(request_output):
+ 
+ def is_device_capability_below_90() -> bool:
+     return not current_platform.has_device_capability(90)
++
++
++def get_attention_config(backend: str) -> dict:
++    """Return attention_config dict for the given backend.
++
++    GDN_ATTN is a Mamba-specific backend that is auto-selected by model
++    architecture (Qwen3.5/Qwen3.6 GDN layers). It cannot be set via
++    attention_config["backend"] since it is not a standard AttentionBackendEnum
++    value. For GDN_ATTN, return an empty dict so the engine uses its default
++    attention backend for transformer layers while GDN layers use GDN_ATTN
++    automatically.
++    """
++    if backend == "GDN_ATTN":
++        return {}
++    return {"backend": backend}
+diff --git a/vllm/model_executor/layers/layernorm.py b/vllm/model_executor/layers/layernorm.py
+index cded9daf13f8..0df8a0bd5b06 100644
+--- a/vllm/model_executor/layers/layernorm.py
++++ b/vllm/model_executor/layers/layernorm.py
+@@ -313,6 +313,12 @@ def forward_native(
+     def forward_cuda(
+         self, x: torch.Tensor, z: torch.Tensor | None = None
+     ) -> torch.Tensor:
++        if envs.VLLM_BATCH_INVARIANT:
++            # rmsnorm_fn uses calc_rows_per_block which selects ROWS_PER_BLOCK
++            # based on M.  Different M values compile different Triton binaries
++            # with different FP reduction orders, breaking batch invariance.
++            # Fall back to the native PyTorch path which is row-independent.
++            return self.forward_native(x, z)
+         from vllm.third_party.flash_linear_attention.ops.layernorm_guard import (
+             rmsnorm_fn,
+         )
+diff --git a/vllm/model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py b/vllm/model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py
+index 108a73223e37..04a6419384c8 100644
+--- a/vllm/model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py
++++ b/vllm/model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py
+@@ -56,6 +56,10 @@
+     fused_sigmoid_gating_delta_rule_update,
+ )
+ from vllm.third_party.flash_linear_attention.ops.chunk import l2norm_fwd
++from vllm.third_party.flash_linear_attention.ops.index import (
++    prepare_chunk_indices,
++    prepare_chunk_offsets,
++)
+ from vllm.third_party.flash_linear_attention.ops.utils import FLA_CHUNK_SIZE
+ from vllm.transformers_utils.configs.qwen3_next import Qwen3NextConfig
+ from vllm.triton_utils import tl, triton
+@@ -208,6 +212,7 @@ def fi_chunk_gated_delta_rule(
+     fi_beta = beta.to(torch.float32)
+     if cu_seqlens is not None:
+         cu_seqlens = cu_seqlens.to(torch.int64)
++    from vllm.envs import VLLM_BATCH_INVARIANT
+     result = chunk_gated_delta_rule_fi(
+         q=q,
+         k=k,
+@@ -217,6 +222,7 @@ def fi_chunk_gated_delta_rule(
+         initial_state=fi_state,
+         output_final_state=output_final_state,
+         cu_seqlens=cu_seqlens,
++        use_cp=False if VLLM_BATCH_INVARIANT else "auto",
+     )
+     # FlashInfer returns (output, state) when output_final_state=True,
+     # or just output when output_final_state=False.
+@@ -523,6 +529,13 @@ def __init__(
+             raise ValueError(f"Duplicate layer name: {prefix}")
+         compilation_config.static_forward_context[prefix] = self
+ 
++        # Pre-allocated constant; avoids CPU→CUDA copy during CUDA graph capture.
++        self.register_buffer(
++            "_cu_seqlens_01",
++            torch.tensor([0, 1], dtype=torch.int32),
++            persistent=False,
++        )
++
+     def _fused_gdn_decode_unsupported_reason(
+         self, vllm_config: VllmConfig
+     ) -> str | None:
+@@ -900,11 +913,42 @@ def forward_cuda(
+         # ============================================================
+         # Part 1: Input Projection
+         # ============================================================
+-        mixed_qkvz, _ = self.in_proj_qkvz(hidden_states)
+-        ba, _ = self.in_proj_ba(hidden_states)
++        # When VLLM_BATCH_INVARIANT: project each request independently so the
++        # GEMM M dimension is identical to the BS=1 case. This covers pure
++        # decode, pure prefill, and mixed batches uniformly via
++        # non_spec_query_start_loc. Speculative decoding is not yet supported.
++        _bi_cu: list[int] | None = None
++        if envs.VLLM_BATCH_INVARIANT and num_tokens > 1:
++            _fc = get_forward_context()
++            _attn_raw = _fc.attn_metadata
++            if isinstance(_attn_raw, dict) and self.prefix in _attn_raw:
++                _meta = _attn_raw[self.prefix]
++                if isinstance(_meta, GDNAttentionMetadata):
++                    if _meta.num_spec_decodes > 0:
++                        raise RuntimeError(
++                            "VLLM_BATCH_INVARIANT is not supported with "
++                            "speculative decoding on GDN_ATTN."
++                        )
++                    if _meta.non_spec_query_start_loc is not None:
++                        _bi_cu = _meta.non_spec_query_start_loc.tolist()
++        if _bi_cu is not None:
++            mixed_qkvz = torch.cat(
++                [self.in_proj_qkvz(hidden_states[_bi_cu[i] : _bi_cu[i + 1]])[0]
++                 for i in range(len(_bi_cu) - 1)],
++                dim=0,
++            )
++            ba = torch.cat(
++                [self.in_proj_ba(hidden_states[_bi_cu[i] : _bi_cu[i + 1]])[0]
++                 for i in range(len(_bi_cu) - 1)],
++                dim=0,
++            )
++        else:
++            mixed_qkvz, _ = self.in_proj_qkvz(hidden_states)
++            ba, _ = self.in_proj_ba(hidden_states)
+ 
+         use_fused_gdn_decode = (
+             self.enable_fused_gdn_decode
++            and not envs.VLLM_BATCH_INVARIANT
+             and hidden_states.dtype == torch.bfloat16
+             and self.norm.weight.dtype in (torch.bfloat16, torch.float32)
+         )
+@@ -1285,6 +1329,7 @@ def _forward_core(
+ 
+         if (
+             self.enable_packed_recurrent_decode
++            and not envs.VLLM_BATCH_INVARIANT  # per-seq loop required for BI
+             and attn_metadata.spec_sequence_masks is None
+             and attn_metadata.num_prefills == 0
+             and attn_metadata.num_decodes > 0
+@@ -1366,17 +1411,48 @@ def _forward_core(
+             mixed_qkv_non_spec_T = mixed_qkv_non_spec.transpose(0, 1)
+             # - "cache_indices" updates the conv_state cache in positions
+             #   pointed to by "state_indices_tensor"
+-            mixed_qkv_non_spec = causal_conv1d_fn(
+-                mixed_qkv_non_spec_T,
+-                conv_weights,
+-                self.conv1d.bias,
+-                activation=self.activation,
+-                conv_states=conv_state,
+-                has_initial_state=has_initial_state,
+-                cache_indices=non_spec_state_indices_tensor,
+-                query_start_loc=non_spec_query_start_loc,
+-                metadata=attn_metadata,
+-            ).transpose(0, 1)
++            if envs.VLLM_BATCH_INVARIANT:
++                # Process each non-spec sequence independently so BS=1 and
++                # BS=N give bitwise-identical per-sequence conv states.
++                # non_spec_query_start_loc covers ALL non-spec sequences
++                # (both prefill and decode in mixed batches).
++                device = mixed_qkv_non_spec_T.device
++                cu_list = non_spec_query_start_loc.tolist()
++                num_non_spec_seqs = non_spec_query_start_loc.numel() - 1
++                chunks = []
++                for _pi in range(num_non_spec_seqs):
++                    _ps = cu_list[_pi]
++                    _pe = cu_list[_pi + 1]
++                    _chunk_T = mixed_qkv_non_spec_T[:, _ps:_pe]
++                    _has_init = (has_initial_state[_pi : _pi + 1]
++                                 if has_initial_state is not None else None)
++                    _cache_idx = non_spec_state_indices_tensor[_pi : _pi + 1]
++                    _cu = torch.tensor([0, _pe - _ps],
++                                       dtype=torch.int32, device=device)
++                    _conv_out = causal_conv1d_fn(
++                        _chunk_T,
++                        conv_weights,
++                        self.conv1d.bias,
++                        activation=self.activation,
++                        conv_states=conv_state,
++                        has_initial_state=_has_init,
++                        cache_indices=_cache_idx,
++                        query_start_loc=_cu,
++                    ).transpose(0, 1)
++                    chunks.append(_conv_out)
++                mixed_qkv_non_spec = torch.cat(chunks, dim=0)
++            else:
++                mixed_qkv_non_spec = causal_conv1d_fn(
++                    mixed_qkv_non_spec_T,
++                    conv_weights,
++                    self.conv1d.bias,
++                    activation=self.activation,
++                    conv_states=conv_state,
++                    has_initial_state=has_initial_state,
++                    cache_indices=non_spec_state_indices_tensor,
++                    query_start_loc=non_spec_query_start_loc,
++                    metadata=attn_metadata,
++                ).transpose(0, 1)
+         elif attn_metadata.num_decodes > 0:
+             assert mixed_qkv_non_spec is not None
+             mixed_qkv_non_spec = causal_conv1d_update(
+@@ -1485,22 +1561,47 @@ def _forward_core(
+             query_decode, key_decode, value_decode = self.rearrange_mixed_qkv(
+                 mixed_qkv_non_spec[:num_decode_tokens]  # type: ignore[index]
+             )
+-            core_attn_out_decode, _ = fused_sigmoid_gating_delta_rule_update(
+-                A_log=self.A_log,
+-                a=a[:num_decode_tokens],
+-                b=b[:num_decode_tokens],
+-                dt_bias=self.dt_bias,
+-                q=query_decode,
+-                k=key_decode,
+-                v=value_decode,
+-                initial_state=ssm_state,
+-                inplace_final_state=True,
+-                cu_seqlens=non_spec_query_start_loc[  # type: ignore[index]
+-                    : attn_metadata.num_decodes + 1
+-                ],
+-                ssm_state_indices=non_spec_state_indices_tensor,
+-                use_qk_l2norm_in_kernel=True,
+-            )
++            if envs.VLLM_BATCH_INVARIANT:
++                assert non_spec_state_indices_tensor is not None
++                device_sd = query_decode.device
++                sd_outputs: list[torch.Tensor] = []
++                # Each decode sequence has 1 token; index _i == token position _i.
++                # Use tensor-index (no .item()) for CUDA-graph-capture compatibility.
++                for _i in range(attn_metadata.num_decodes):
++                    _si_sd = non_spec_state_indices_tensor[_i : _i + 1]
++                    o_sd, _ = fused_sigmoid_gating_delta_rule_update(
++                        A_log=self.A_log,
++                        a=a[_i : _i + 1],
++                        b=b[_i : _i + 1],
++                        dt_bias=self.dt_bias,
++                        q=query_decode[:, _i : _i + 1],
++                        k=key_decode[:, _i : _i + 1],
++                        v=value_decode[:, _i : _i + 1],
++                        initial_state=ssm_state,
++                        inplace_final_state=True,
++                        cu_seqlens=self._cu_seqlens_01,
++                        ssm_state_indices=_si_sd,
++                        use_qk_l2norm_in_kernel=True,
++                    )
++                    sd_outputs.append(o_sd)
++                core_attn_out_decode = torch.cat(sd_outputs, dim=1)
++            else:
++                core_attn_out_decode, _ = fused_sigmoid_gating_delta_rule_update(
++                    A_log=self.A_log,
++                    a=a[:num_decode_tokens],
++                    b=b[:num_decode_tokens],
++                    dt_bias=self.dt_bias,
++                    q=query_decode,
++                    k=key_decode,
++                    v=value_decode,
++                    initial_state=ssm_state,
++                    inplace_final_state=True,
++                    cu_seqlens=non_spec_query_start_loc[  # type: ignore[index]
++                        : attn_metadata.num_decodes + 1
++                    ],
++                    ssm_state_indices=non_spec_state_indices_tensor,
++                    use_qk_l2norm_in_kernel=True,
++                )
+         else:
+             core_attn_out_decode = None
+ 
+@@ -1516,22 +1617,55 @@ def _forward_core(
+             assert prefill_has_initial_state is not None
+             initial_state = ssm_state[prefill_state_indices]
+             initial_state[~prefill_has_initial_state, ...] = 0
+-            (
+-                core_attn_out_non_spec,
+-                last_recurrent_state,
+-            ) = self.chunk_gated_delta_rule(
+-                q=query_non_spec,
+-                k=key_non_spec,
+-                v=value_non_spec,
+-                g=g_non_spec,
+-                beta=beta_non_spec,
+-                initial_state=initial_state,
+-                output_final_state=True,
+-                cu_seqlens=attn_metadata.prefill_query_start_loc,
+-                chunk_indices=attn_metadata.chunk_indices,
+-                chunk_offsets=attn_metadata.chunk_offsets,
+-                use_qk_l2norm_in_kernel=False,
+-            )
++            if envs.VLLM_BATCH_INVARIANT:
++                assert attn_metadata.prefill_query_start_loc is not None
++                cu_seqlens_list = attn_metadata.prefill_query_start_loc.tolist()
++                device = query_non_spec.device
++                outputs: list[torch.Tensor] = []
++                last_states: list[torch.Tensor] = []
++                for i in range(attn_metadata.num_prefills):
++                    start = cu_seqlens_list[i]
++                    end = cu_seqlens_list[i + 1]
++                    seq_len = end - start
++                    cu_seq_i_cpu = torch.tensor([0, seq_len], dtype=torch.int32)
++                    out_i, state_i = self.chunk_gated_delta_rule(
++                        q=query_non_spec[:, start:end],
++                        k=key_non_spec[:, start:end],
++                        v=value_non_spec[:, start:end],
++                        g=g_non_spec[:, start:end],
++                        beta=beta_non_spec[:, start:end],
++                        initial_state=initial_state[i : i + 1],
++                        output_final_state=True,
++                        cu_seqlens=cu_seq_i_cpu.to(device),
++                        chunk_indices=prepare_chunk_indices(
++                            cu_seq_i_cpu, FLA_CHUNK_SIZE
++                        ).to(device),
++                        chunk_offsets=prepare_chunk_offsets(
++                            cu_seq_i_cpu, FLA_CHUNK_SIZE
++                        ).to(device),
++                        use_qk_l2norm_in_kernel=False,
++                    )
++                    outputs.append(out_i)
++                    last_states.append(state_i)
++                core_attn_out_non_spec = torch.cat(outputs, dim=1)
++                last_recurrent_state = torch.cat(last_states, dim=0)
++            else:
++                (
++                    core_attn_out_non_spec,
++                    last_recurrent_state,
++                ) = self.chunk_gated_delta_rule(
++                    q=query_non_spec,
++                    k=key_non_spec,
++                    v=value_non_spec,
++                    g=g_non_spec,
++                    beta=beta_non_spec,
++                    initial_state=initial_state,
++                    output_final_state=True,
++                    cu_seqlens=attn_metadata.prefill_query_start_loc,
++                    chunk_indices=attn_metadata.chunk_indices,
++                    chunk_offsets=attn_metadata.chunk_offsets,
++                    use_qk_l2norm_in_kernel=False,
++                )
+             # Init cache
+             ssm_state[prefill_state_indices] = last_recurrent_state.to(ssm_state.dtype)
+ 
+@@ -1542,25 +1676,51 @@ def _forward_core(
+                     [core_attn_out_decode, core_attn_out_non_spec], dim=1
+                 )
+         elif attn_metadata.num_decodes > 0:
+-            core_attn_out_non_spec, last_recurrent_state = (
+-                fused_sigmoid_gating_delta_rule_update(
+-                    A_log=self.A_log,
+-                    a=a,
+-                    b=b,
+-                    dt_bias=self.dt_bias,
+-                    q=query_non_spec,
+-                    k=key_non_spec,
+-                    v=value_non_spec,
+-                    initial_state=ssm_state,
+-                    inplace_final_state=True,
+-                    cu_seqlens=non_spec_query_start_loc[  # type: ignore[index]
+-                        : attn_metadata.num_decodes
+-                        + 1  # type: ignore[attr-defined]
+-                    ],
+-                    ssm_state_indices=non_spec_state_indices_tensor,
+-                    use_qk_l2norm_in_kernel=True,
++            if envs.VLLM_BATCH_INVARIANT:
++                assert non_spec_state_indices_tensor is not None
++                device = query_non_spec.device
++                dec_outputs: list[torch.Tensor] = []
++                # Each decode sequence has 1 token; index _i == token position _i.
++                # Use tensor-index (no .item()) for CUDA-graph-capture compatibility.
++                for _i in range(attn_metadata.num_decodes):
++                    _si_dec = non_spec_state_indices_tensor[_i : _i + 1]
++                    out_i, _ = fused_sigmoid_gating_delta_rule_update(
++                        A_log=self.A_log,
++                        a=a[_i : _i + 1],
++                        b=b[_i : _i + 1],
++                        dt_bias=self.dt_bias,
++                        q=query_non_spec[:, _i : _i + 1],
++                        k=key_non_spec[:, _i : _i + 1],
++                        v=value_non_spec[:, _i : _i + 1],
++                        initial_state=ssm_state,
++                        inplace_final_state=True,
++                        cu_seqlens=self._cu_seqlens_01,
++                        ssm_state_indices=_si_dec,
++                        use_qk_l2norm_in_kernel=True,
++                    )
++                    dec_outputs.append(out_i)
++                core_attn_out_non_spec = torch.cat(dec_outputs, dim=1)
++                last_recurrent_state = None
++            else:
++                core_attn_out_non_spec, last_recurrent_state = (
++                    fused_sigmoid_gating_delta_rule_update(
++                        A_log=self.A_log,
++                        a=a,
++                        b=b,
++                        dt_bias=self.dt_bias,
++                        q=query_non_spec,
++                        k=key_non_spec,
++                        v=value_non_spec,
++                        initial_state=ssm_state,
++                        inplace_final_state=True,
++                        cu_seqlens=non_spec_query_start_loc[  # type: ignore[index]
++                            : attn_metadata.num_decodes
++                            + 1  # type: ignore[attr-defined]
++                        ],
++                        ssm_state_indices=non_spec_state_indices_tensor,
++                        use_qk_l2norm_in_kernel=True,
++                    )
+                 )
+-            )
+         else:
+             core_attn_out_non_spec, last_recurrent_state = None, None
+ 
+diff --git a/vllm/v1/attention/backends/gdn_attn.py b/vllm/v1/attention/backends/gdn_attn.py
+index e4365a90c737..042818f15fa3 100644
+--- a/vllm/v1/attention/backends/gdn_attn.py
++++ b/vllm/v1/attention/backends/gdn_attn.py
+@@ -37,6 +37,14 @@ def get_builder_cls() -> type["GDNAttentionMetadataBuilder"]:
+     def is_ssm(cls) -> bool:
+         return True
+ 
++    @classmethod
++    def supports_batch_invariance(cls) -> bool:
++        # Only implemented for NVIDIA CUDA. ROCm AITER and XPU paths still
++        # use batch-shaped projections and the fused norm kernel, which are
++        # not batch-invariant.
++        import torch
++        return torch.cuda.is_available() and torch.version.hip is None
++
+ 
+ @dataclass
+ class GDNAttentionMetadata:

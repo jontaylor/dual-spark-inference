@@ -1,0 +1,3 @@
+# Preserve the measured low-latency policy for the tested internal NVMe.
+# Higher idle SSD power; rollback: remove this rule and restore QoS to100000.
+ACTION=="add|change", SUBSYSTEM=="nvme", KERNEL=="nvme0", TEST=="power/pm_qos_latency_tolerance_us", ATTR{power/pm_qos_latency_tolerance_us}="0"

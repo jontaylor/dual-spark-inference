@@ -1,0 +1,10 @@
+--- a/completion.py
++++ b/completion.py
+@@ -349,6 +349,7 @@
+             r.witness_length
+             for r in list(self.records.values()) + list(pending_records.values())
+             if local < r.boundary < request.num_prompt_tokens
++            and r.boundary % 64 == 0
+         }
+         digests = prefix_digests(request.all_token_ids, request.cache_salt, lengths)
+         for length in sorted(lengths, reverse=True):

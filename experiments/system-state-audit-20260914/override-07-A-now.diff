@@ -1,0 +1,286 @@
+--- /home/jon/dual-spark-inference-kv-paging/experiments/aggregate-throughput-20260914/completion.aligned.py
++++ /home/jon/dual-spark-inference-kv-paging/experiments/gpu-native-completion-20260914/completion.gpu.v2.py
+@@ -88,6 +88,7 @@
+     completion_saves: dict[str, CompletionSave] = field(default_factory=dict)
+     checkpoint_requests: list[tuple[str, int]] = field(default_factory=list)
+     checkpoint_finished: set[str] = field(default_factory=set)
++    native_eviction_jobs: set[int] = field(default_factory=set)
+ 
+ 
+ @dataclass
+@@ -121,16 +122,25 @@
+         self.active = set()
+         self.ready = {}
+         self.cancelled = set()
++        # Only pages actually loaded into this request, never token-only matches.
++        self.restored_pages = {}
++        self.lookup_pins = {}
++
++    def release_lookup_pin(self, rid):
++        pin = self.lookup_pins.pop(rid, None)
++        if pin is not None:
++            self.scheduler.manager.complete_load(*pin)
+ 
+     def finish(self, request, block_ids, *, active=False, memory=False):
+         s = self.scheduler
+         rid = request.request_id
++        self.release_lookup_pin(rid)
+         self.selected.pop(rid, None)
++        inherited = self.restored_pages.get(rid, {}) if active else self.restored_pages.pop(rid, {})
+         state = s._req_status.get(rid)
+         boundary = min(request.num_computed_tokens, request.num_tokens - 1)
+-        if not active:
+-            # Save the latest arithmetic-grid state, replaying at most 63 tokens.
+-            boundary = boundary // 64 * 64
++        # Capture the exact accepted completion/suspension boundary on demand.
++        # The restore scheduler handles its initial partial arithmetic chunk.
+         if (
+             state is None
+             or not eligible(request)
+@@ -156,6 +166,12 @@
+         pages = []
+         sources = {}
+         shared = []
++        def shareable(candidate):
++            # Suspension must release GPU capacity. Reusing a GPU-only page
++            # would pin it for the parked request and defeat that purpose.
++            if active and getattr(s.manager, 'native_mode', False) and s.manager.is_gpu_resident(candidate):
++                return False
++            return s.manager.lookup(candidate, state.req_context) == LookupResult.HIT
+         # A unique namespace avoids confusing an incomplete/stale save with a hit.
+         nonce = s._generate_job_id()
+         for gi, group in enumerate(self.groups):
+@@ -170,16 +186,31 @@
+                 start = max(0, end - window - 1) if window else 0
+             for index in range(start, end):
+                 key = None
+-                if gi < len(state.group_states) and not isinstance(spec, MambaSpec):
++                # An immutable full attention page loaded from a prior snapshot
++                # is already the exact state needed here. Share its existing
++                # storage key while resident/ready, rather than copy it anew.
++                # Partial tails, recurrent state, rings and locally shared GPU
++                # pages are deliberately absent from this provenance map.
++                candidate = inherited.get((gi, index))
++                if candidate is not None and not isinstance(spec, (MambaSpec, CircularBufferSpec)):
++                    if shareable(candidate):
++                        key = candidate
++                        shared.append(key)
++                if (key is None and memory and getattr(s.manager, 'native_mode', False)
++                        and not isinstance(spec, MambaSpec)
++                        and index < len(block_ids[gi])):
++                    candidate = s.manager.native_key(
++                        block_ids[gi][index], gi, index, state.req_context)
++                    if candidate is not None:
++                        key = candidate
++                        shared.append(key)
++                if key is None and gi < len(state.group_states) and not isinstance(spec, MambaSpec):
+                     data = state.group_states[gi]
+                     cfg = s.config.kv_group_configs[gi]
+                     stable_end = boundary // spec.block_size - int(cfg.is_eagle_group)
+                     if index < min(stable_end, len(data.offload_keys)):
+                         candidate = data.offload_keys[index]
+-                        if (
+-                            s.manager.lookup(candidate, state.req_context)
+-                            == LookupResult.HIT
+-                        ):
++                        if shareable(candidate):
+                             key = candidate
+                             shared.append(key)
+                 if key is None:
+@@ -226,8 +257,12 @@
+         result = None
+         if memory:
+             locations = {key: (gi, index) for gi, index, key in pages if key in sources}
++            borrowed = {
++                key: sources[key] for gi, index, key in pages
++                if key in sources and not isinstance(group_spec(self.groups[gi]), MambaSpec)
++            } if getattr(s.manager, 'native_mode', False) else None
+             result = s.manager.prepare_memory_store(
+-                list(sources), state.req_context, locations
++                list(sources), state.req_context, locations, borrowed=borrowed
+             )
+         if result is None:
+             # A completion can go directly to disk only when resident snapshot
+@@ -238,6 +273,9 @@
+                 s.manager.complete_load(shared, state.req_context)
+             return False
+         assert result.keys_to_store == list(sources)
++        logger.info("Completion snapshot plan request=%s boundary=%d pages=%d reused=%d new=%d inherited=%d active=%s",
++                    rid, boundary, len(pages), len(shared), len(sources),
++                    sum(key in set(inherited.values()) for key in shared), active)
+         record = CompletionRecord(witness_length, digest, boundary, pages)
+         sizes = [0] * len(self.groups)
+         indices = [0] * len(self.groups)
+@@ -259,6 +297,10 @@
+         return True
+ 
+     def add_metadata(self, meta):
++        # Lookups which did not obtain an allocation this pass must not hold
++        # GPU capacity while waiting for admission or a later scheduling pass.
++        for rid in list(self.lookup_pins):
++            self.release_lookup_pin(rid)
+         saves = {}
+         for rid, (save, job) in self.to_send.items():
+             meta.store_jobs[save.job_id] = job
+@@ -316,6 +358,8 @@
+             else:
+                 if rid in self.active:
+                     raise RuntimeError("Pressure snapshot state unavailable")
++                if getattr(s.manager, 'native_mode', False):
++                    s.manager.discard_idle_keys({k for _, _, k in record.pages} - set(shared))
+                 logger.info(
+                     "Completion checkpoint skipped request=%s (state unavailable)", rid
+                 )
+@@ -338,6 +382,7 @@
+ 
+     def lookup(self, request, local):
+         rid = request.request_id
++        self.release_lookup_pin(rid)
+         self.selected.pop(rid, None)
+         if not eligible(request):
+             return None
+@@ -354,7 +399,6 @@
+             r.witness_length
+             for r in list(self.records.values()) + list(pending_records.values())
+             if local < r.boundary < request.num_prompt_tokens
+-            and r.boundary % 64 == 0
+         }
+         digests = prefix_digests(request.all_token_ids, request.cache_salt, lengths)
+         for length in sorted(lengths, reverse=True):
+@@ -366,10 +410,23 @@
+                 continue
+             hits = [s.manager.lookup(k, state.req_context) for _, _, k in record.pages]
+             if LookupResult.MISS in hits:
++                missing = [gi for (gi, _, _), hit in zip(record.pages, hits)
++                           if hit == LookupResult.MISS]
++                logger.info("Completion checkpoint unavailable request=%s boundary=%d missing_groups=%s pages=%d records=%d",
++                            rid, record.boundary, missing, len(record.pages), len(self.records))
+                 del self.records[key]
+                 continue
+             if LookupResult.HIT_PENDING in hits:
+                 return None, False
++            if getattr(s.manager, 'native_mode', False):
++                # Full local prefix pages are adopted by the native allocator
++                # before it allocates new blocks. Pin the remaining sources
++                # across that allocation, then hand their lifetime to the load.
++                keys = [key for gi, index, key in record.pages
++                        if isinstance(group_spec(self.groups[gi]), (MambaSpec, CircularBufferSpec))
++                        or index >= local // group_spec(self.groups[gi]).block_size]
++                s.manager.prepare_load(keys, state.req_context)
++                self.lookup_pins[rid] = (keys, state.req_context)
+             self.selected[rid] = record
+             self.records.move_to_end(key)
+             state.num_locally_computed_tokens = local
+@@ -380,11 +437,13 @@
+     def allocate(self, request, blocks, external):
+         record = self.selected.pop(request.request_id, None)
+         if record is None or external == 0:
++            self.release_lookup_pin(request.request_id)
+             return False
+         s = self.scheduler
+         state = s._req_status[request.request_id]
+         assert state.num_locally_computed_tokens + external == record.boundary
+         keys, ids = [], []
++        restored = {}
+         sizes = [0] * len(self.groups)
+         indices = [0] * len(self.groups)
+         for gi, index, key in record.pages:
+@@ -397,10 +456,18 @@
+                 continue
+             keys.append(key)
+             ids.append(block.block_id)
++            spec = group_spec(self.groups[gi])
++            if not isinstance(spec, (MambaSpec, CircularBufferSpec)):
++                cfg = s.config.kv_group_configs[gi]
++                stable_end = record.boundary // spec.block_size - int(cfg.is_eagle_group)
++                if index < stable_end:
++                    restored[(gi, index)] = key
+             if sizes[gi] == 0:
+                 indices[gi] = index
+             sizes[gi] += 1
++        self.restored_pages[request.request_id] = restored
+         src = s.manager.prepare_load(keys, state.req_context)
++        self.release_lookup_pin(request.request_id)
+         jid = s._generate_job_id()
+         s._current_batch_load_jobs[jid] = TransferJob(
+             request.request_id, src, GPULoadStoreSpec(ids, sizes, indices)
+@@ -530,75 +597,7 @@
+ 
+ 
+ def capture_completion_states(connector, runner, metadata):
+-    """Retain only recurrent/ring state at grid checkpoints, not attention pages.
+-
+-    These private CPU snapshots are bounded by live request slots. Attention
+-    prefix pages are immutable and copied only when the request finishes.
+-    """
+-    import torch
+-    if not isinstance(metadata, CompletionMetadata):
+-        return
+-    worker = connector.connector_worker.worker
+-    shadows = getattr(worker, "aligned_completion_shadows", None)
+-    if shadows is None:
+-        shadows = worker.aligned_completion_shadows = {}
+-    groups = connector._completion_groups
+-    attempted = getattr(worker, "aligned_completion_attempted", None)
+-    if attempted is None:
+-        attempted = worker.aligned_completion_attempted = {}
+-    for rid, boundary in metadata.checkpoint_requests:
+-        ri = runner.req_states.req_id_to_index.get(rid)
+-        if ri is None or attempted.get(rid) == boundary:
+-            continue
+-        attempted[rid] = boundary
+-        block_ids = []
+-        for gi, group in enumerate(groups):
+-            source_group = connector._completion_order[gi]
+-            if isinstance(group_spec(group), (MambaSpec, CircularBufferSpec)):
+-                # Recurrent state and ring tables use unexpanded block IDs.
+-                if runner.block_tables.blocks_per_kv_block[source_group] != 1:
+-                    raise RuntimeError("Unsupported expanded checkpoint state table")
+-                count = int(runner.block_tables.num_blocks.np[source_group, ri])
+-                ids = runner.block_tables.block_tables[source_group].gpu[ri, :count].cpu().tolist()
+-            else:
+-                ids = []
+-            block_ids.append(ids)
+-        # Private scratch ID never enters the transfer-job namespace.
+-        jid = -1
+-        save = CompletionSave(CompletionRecord(boundary + 1, b"", boundary, []), tuple(block_ids), jid)
+-        scratch = CompletionMetadata(load_jobs={}, store_jobs={}, completion_saves={rid: save})
+-        _capture_current_completion_states(connector, runner, scratch)
+-        if jid in connector._invalid_completions:
+-            connector._invalid_completions.discard(jid)
+-            worker.completion_replacements.pop(jid, None)
+-            continue
+-        pieces = worker.completion_replacements.pop(jid)
+-        for gi, group in enumerate(groups):
+-            if not isinstance(group_spec(group), CircularBufferSpec):
+-                continue
+-            bid = block_ids[gi][0]
+-            spans = []
+-            for ref in worker.kv_caches.group_data_refs[gi]:
+-                cached = worker.kv_caches.tensors[ref.tensor_idx]
+-                raw = cached.tensor.view(torch.uint8).reshape(-1, cached.page_size_bytes)
+-                data = raw[bid, :ref.page_size_bytes].cpu().contiguous().numpy().tobytes()
+-                spans.append((worker.tensor_offsets[ref.tensor_idx], data))
+-            pieces[gi] = spans
+-        shadows[rid] = (boundary, pieces)
+-
+-    remaining = {}
+-    for rid, save in metadata.completion_saves.items():
+-        shadow = shadows.get(rid)
+-        if shadow is not None and shadow[0] == save.record.boundary:
+-            worker.completion_replacements[save.job_id] = shadow[1]
+-            logger.info("Completion checkpoint using aligned shadow request=%s boundary=%d", rid, save.record.boundary)
+-        else:
+-            # Exact aligned finishes and active pressure saves retain the
+-            # existing accepted-state validation. Missing older state is
+-            # rejected, never advertised as a cache hit.
+-            remaining[rid] = save
+-    if remaining:
+-        _capture_current_completion_states(connector, runner, CompletionMetadata(load_jobs={}, store_jobs={}, completion_saves=remaining))
+-    for rid in metadata.checkpoint_finished:
+-        shadows.pop(rid, None)
+-        attempted.pop(rid, None)
++    """Capture only completion/parking events before source slots are reused."""
++    from vllm.v1.kv_offload.gb10_gpu_completion_copy import capture_gpu_completions
++    remaining = capture_gpu_completions(connector, runner, metadata)
++    _capture_current_completion_states(connector, runner, remaining)

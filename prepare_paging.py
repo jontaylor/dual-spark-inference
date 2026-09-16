@@ -12,6 +12,7 @@ args = parser.parse_args()
 root = Path(__file__).resolve().parent
 source = args.server_root.resolve()
 files = {
+    'files/paging/offloading_scheduler.py': 'vllm/distributed/kv_transfer/kv_connector/v1/offloading/scheduler.py',
     'files/paging/completion.py': 'vllm/distributed/kv_transfer/kv_connector/v1/gb10_completion.py',
     'files/paging/model_runner.py': 'vllm/v1/worker/gpu/model_runner.py',
     'files/paging/parking_scheduler_base.py': 'vllm/v1/core/sched/scheduler.py',

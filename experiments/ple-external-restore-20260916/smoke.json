@@ -1,0 +1,90 @@
+{
+  "health": 200,
+  "unauthenticated_models": 401,
+  "models": [
+    "qwen3.8-flash-next",
+    "ornith-1.5-35b-a3b-tp2"
+  ],
+  "concurrent_arithmetic_checks": [
+    {
+      "model": "qwen3.8-flash-next",
+      "response": "323",
+      "seconds": 1.22,
+      "usage": {
+        "prompt_tokens": 28,
+        "total_tokens": 32,
+        "completion_tokens": 4,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "created_cache_tokens": 0,
+          "multimodal_tokens": null
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    },
+    {
+      "model": "ornith-1.5-35b-a3b-tp2",
+      "response": "360",
+      "seconds": 1.22,
+      "usage": {
+        "prompt_tokens": 28,
+        "total_tokens": 32,
+        "completion_tokens": 4,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "created_cache_tokens": 0,
+          "multimodal_tokens": null
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    },
+    {
+      "model": "qwen3.8-flash-next",
+      "response": "399",
+      "seconds": 1.22,
+      "usage": {
+        "prompt_tokens": 28,
+        "total_tokens": 32,
+        "completion_tokens": 4,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "created_cache_tokens": 0,
+          "multimodal_tokens": null
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    },
+    {
+      "model": "ornith-1.5-35b-a3b-tp2",
+      "response": "440",
+      "seconds": 1.22,
+      "usage": {
+        "prompt_tokens": 28,
+        "total_tokens": 32,
+        "completion_tokens": 4,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "created_cache_tokens": 0,
+          "multimodal_tokens": null
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    }
+  ],
+  "tool_call": {
+    "name": "get_weather",
+    "arguments": {
+      "city": "London"
+    }
+  },
+  "streaming_response": "READY",
+  "note": "Short correctness checks only; no full-context or throughput claim."
+}

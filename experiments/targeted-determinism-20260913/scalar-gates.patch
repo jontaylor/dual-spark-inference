@@ -1,0 +1,11 @@
+--- model.fixed.py
++++ model.final.py
+@@ -172,7 +172,7 @@
+         super().__init__(vllm_config=vllm_config, prefix=prefix)
+         config = vllm_config.model_config.hf_text_config
+         self.n_shared_experts = int(config.shared_expert_intermediate_size > 0)
+-        projections = [self.gate]
++        projections = [self.gate, self.shared_expert_gate]
+         if self.shared_expert is not None:
+             projections += [self.shared_expert.gate_up_proj, self.shared_expert.down_proj]
+         for projection in projections:

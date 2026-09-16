@@ -1,0 +1,58 @@
+--- a/vllm/models/qwen4_exp/nvidia/hyperconnection.py
++++ b/vllm/models/qwen4_exp/nvidia/hyperconnection.py
+@@ -6,7 +6,9 @@
+ "HyperConnections" (https://arxiv.org/abs/2409.19606). This NVIDIA variant
+ delays each HC combine to the following HC mix boundary. HC glue kernels,
+ including fused combine+RMSNorm, live in ``ops/hc.py``; projections remain
+-standard vLLM Linear modules.
++standard vLLM Linear modules for weight loading. The unquantized, bias-free
++HC projections execute with a fixed-schedule Triton GEMM to avoid SM121
++cuBLAS split-K batch-shape dependence.
+ 
+ Hidden states between layers have shape ``[..., HC*HS]`` with HS inner
+ (HC outer, HS inner — checkpoint-native layout).
+@@ -23,6 +25,8 @@
+ """
+ 
+ import torch
++
++from vllm.model_executor.determinism.batch_invariant import matmul_persistent
+ from torch import nn
+ 
+ from vllm.model_executor.layers.linear import (
+@@ -137,14 +141,14 @@
+         if self.use_combine:
+             # produce injection logits for combine
+             split_sizes = [self.lora_rank, self.hc_count, self.pad_size]
+-            down_and_injection = self.input_mix_weight_down_block_inject(xn)
++            down_and_injection = matmul_persistent(xn, self.input_mix_weight_down_block_inject.weight.t())
+             lora, injection, _ = down_and_injection.split(split_sizes, dim=-1)
+         else:
+-            lora = self.input_mix_weight_down(xn)
++            lora = matmul_persistent(xn, self.input_mix_weight_down.weight.t())
+             injection = None
+ 
+         lora = hc_silu(lora, self.hc_count)
+-        gate = self.input_mix_weight_up(lora)  # [M, D]
++        gate = matmul_persistent(lora, self.input_mix_weight_up.weight.t())  # [M, D]
+         block_input = hc_gate_mix(xn, gate, self.hc_count)
+ 
+         return hidden_states, block_input, injection
+@@ -173,14 +177,14 @@
+         if self.use_combine:
+             # produce injection logits for combine
+             split_sizes = [self.lora_rank, self.hc_count, self.pad_size]
+-            down_and_injection = self.input_mix_weight_down_block_inject(xn)
++            down_and_injection = matmul_persistent(xn, self.input_mix_weight_down_block_inject.weight.t())
+             lora, injection, _ = down_and_injection.split(split_sizes, dim=-1)
+         else:
+-            lora = self.input_mix_weight_down(xn)
++            lora = matmul_persistent(xn, self.input_mix_weight_down.weight.t())
+             injection = None
+ 
+         lora = hc_silu(lora, self.hc_count)
+-        gate = self.input_mix_weight_up(lora)  # [M, D]
++        gate = matmul_persistent(lora, self.input_mix_weight_up.weight.t())  # [M, D]
+         block_input = hc_gate_mix(xn, gate, self.hc_count)
+ 
+         return hidden_states, block_input, injection

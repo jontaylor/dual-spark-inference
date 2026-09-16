@@ -1,0 +1,12 @@
+--- /home/jon/dual-spark-inference-kv-paging/experiments/gpu-native-completion-20260914/block_pool.gpu.py
++++ /home/jon/dual-spark-inference-kv-paging/experiments/allocation-deferral-implementation-20260914/block_pool.py
+@@ -658,6 +658,9 @@
+         if num_blocks > self.get_num_free_blocks():
+             raise ValueError(f"Cannot get {num_blocks} free blocks from the pool")
+ 
++        gate = getattr(self, 'native_allocation_gate', None)
++        if gate is not None:
++            gate(num_blocks)
+         ret: list[KVCacheBlock] = self.free_block_queue.popleft_n(num_blocks)
+ 
+         # In order to only iterate the list once, we duplicated code a bit

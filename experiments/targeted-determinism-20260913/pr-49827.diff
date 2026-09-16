@@ -1,0 +1,980 @@
+diff --git a/.buildkite/test_areas/kernels.yaml b/.buildkite/test_areas/kernels.yaml
+index db1f909598d8..d2ac36dc2a8f 100644
+--- a/.buildkite/test_areas/kernels.yaml
++++ b/.buildkite/test_areas/kernels.yaml
+@@ -289,6 +289,7 @@ steps:
+   - vllm/model_executor/layers/fused_moe/router/bf16x3_router_gemm_cutedsl.py
+   - vllm/models/minimax_m3/nvidia/
+   - cmake/external_projects/fmha_sm100.cmake
++  - tests/kernels/mamba/test_gdn_forward_core_split.py
+   - tests/kernels/mamba/test_gdn_prefill_cutedsl.py
+   - tests/kernels/test_bf16x3_router_gemm_cutedsl.py
+   - tests/kernels/attention/test_minimax_m3.py
+@@ -321,6 +322,7 @@ steps:
+     - pytest -v -s tests/kernels/moe/test_flashinfer_moe.py
+     - pytest -v -s tests/kernels/moe/test_trtllm_nvfp4_moe.py
+     - pytest -v -s tests/kernels/moe/test_cutedsl_moe.py
++    - pytest -v -s tests/kernels/mamba/test_gdn_forward_core_split.py
+     - pytest -v -s tests/kernels/mamba/test_gdn_prefill_cutedsl.py
+     - pytest -v -s tests/kernels/test_bf16x3_router_gemm_cutedsl.py
+     - pytest -v -s tests/kernels/attention/test_minimax_m3.py
+diff --git a/.buildkite/test_areas/misc.yaml b/.buildkite/test_areas/misc.yaml
+index caa56c21b378..7459b235573e 100644
+--- a/.buildkite/test_areas/misc.yaml
++++ b/.buildkite/test_areas/misc.yaml
+@@ -425,6 +425,7 @@ steps:
+     - pytest -v -s v1/determinism/test_rms_norm_batch_invariant.py
+     - VLLM_TEST_MODEL=deepseek-ai/DeepSeek-V2-Lite-Chat pytest -v -s v1/determinism/test_batch_invariance.py::test_v1_generation_is_deterministic_across_batch_sizes_with_needle -k TRITON_MLA
+     - VLLM_TEST_MODEL=Qwen/Qwen3-30B-A3B-Thinking-2507-FP8 pytest -v -s v1/determinism/test_batch_invariance.py::test_v1_generation_is_deterministic_across_batch_sizes_with_needle -k FLASH_ATTN
++    - VLLM_TEST_MODEL=Qwen/Qwen3.5-0.8B pytest -v -s v1/determinism/test_online_batch_invariance.py::test_qwen_gdn_chunked_prefill_is_batch_invariant
+ 
+ - label: Batch Invariance (B200)
+   key: batch-invariance-b200
+@@ -441,6 +442,7 @@ steps:
+     - pytest -v -s v1/determinism/test_rms_norm_batch_invariant.py
+     - VLLM_TEST_MODEL=deepseek-ai/DeepSeek-V2-Lite-Chat pytest -v -s v1/determinism/test_batch_invariance.py::test_v1_generation_is_deterministic_across_batch_sizes_with_needle -k TRITON_MLA
+     - VLLM_TEST_MODEL=Qwen/Qwen3-30B-A3B-Thinking-2507-FP8 pytest -v -s v1/determinism/test_batch_invariance.py::test_v1_generation_is_deterministic_across_batch_sizes_with_needle -k FLASH_ATTN
++    - VLLM_TEST_MODEL=Qwen/Qwen3.5-0.8B pytest -v -s v1/determinism/test_online_batch_invariance.py::test_qwen_gdn_chunked_prefill_is_batch_invariant
+     - pytest -v -s v1/determinism/test_nvfp4_batch_invariant.py
+     - pytest -v -s v1/determinism/test_nvfp4_batch_invariant_scaled_mm.py
+     - pytest -v -s v1/determinism/test_matmul_batch_invariant.py
+diff --git a/tests/kernels/mamba/test_gdn_forward_core_split.py b/tests/kernels/mamba/test_gdn_forward_core_split.py
+index b1c30303805f..e04c789600c9 100644
+--- a/tests/kernels/mamba/test_gdn_forward_core_split.py
++++ b/tests/kernels/mamba/test_gdn_forward_core_split.py
+@@ -22,9 +22,9 @@
+   non-spec tokens in both paths, so it cancels out and only the recurrent split
+   is compared).
+ 
+-The Triton/FLA chunk backend is forced so the prefill-only ``chunk_indices``
+-must stay consistent with the rebased ``cu_seqlens`` (a stringent, backend
+-portable check of the split wiring).
++The device's supported chunk backend is forced so the prefill-only
++``chunk_indices`` must stay consistent with the rebased ``cu_seqlens`` (a
++stringent, backend-portable check of the split wiring).
+ """
+ 
+ from __future__ import annotations
+@@ -38,12 +38,9 @@
+ 
+ from vllm.platforms import current_platform
+ 
+-if not (
+-    current_platform.is_cuda() and current_platform.is_device_capability_family(100)
+-):
++if not (current_platform.is_cuda() and current_platform.has_device_capability(90)):
+     pytest.skip(
+-        reason="GDN _forward_core split test uses the CuteDSL prefill backend "
+-        "(requires CUDA SM10x).",
++        reason="GDN _forward_core split tests require CUDA SM90+.",
+         allow_module_level=True,
+     )
+ 
+@@ -69,6 +66,7 @@
+     FLA_CHUNK_SIZE,
+ )
+ from vllm.v1.attention.backends.gdn_attn import (  # noqa: E402
++    GDNAttentionMetadata,
+     GDNAttentionMetadataBuilder,
+ )
+ from vllm.v1.kv_cache_interface import MambaSpec  # noqa: E402
+@@ -88,27 +86,34 @@
+ 
+ def _make_vllm_config():
+     # A small, ungated GDN model whose config is cached locally; only the config
+-    # (scheduler/cache/compilation/hf) is used here, never the weights. Inject
+-    # linear_key_head_dim=128 and request the CuteDSL prefill backend -- the
+-    # supported GDN chunk kernel on Blackwell (the Triton/FLA chunk kernel is
+-    # unsupported on SM10x). CuteDSL consumes chunk_indices/chunk_offsets, so
+-    # this also exercises the prefill-only chunk-metadata wiring.
++    # (scheduler/cache/compilation/hf) is used here, never the weights. Use
++    # Triton on Hopper and CuteDSL on Blackwell.
+     cfg = create_vllm_config(
+         model_name="Qwen/Qwen3.5-0.8B",
+         block_size=BLOCK_SIZE,
+         hf_config_override={"linear_key_head_dim": K},
+     )
+-    cfg.additional_config = {"gdn_prefill_backend": "cutedsl"}
++    backend = (
++        "cutedsl" if current_platform.is_device_capability_family(100) else "triton"
++    )
++    cfg.additional_config = {"gdn_prefill_backend": backend}
+     return cfg
+ 
+ 
+ def _build_layer(
+-    vllm_config, conv_state, ssm_state, A_log, dt_bias, conv_weight, conv_bias
++    vllm_config,
++    conv_state,
++    ssm_state,
++    A_log,
++    dt_bias,
++    conv_weight,
++    conv_bias,
++    enable_packed_recurrent_decode=False,
+ ):
+     """A minimal object that runs the real ``_forward_core`` bound to it."""
+     layer = types.SimpleNamespace()
+     layer.prefix = PREFIX
+-    layer.enable_packed_recurrent_decode = False
++    layer.enable_packed_recurrent_decode = enable_packed_recurrent_decode
+     layer.tp_size = 1
+     layer.num_k_heads = H
+     layer.num_v_heads = HV
+@@ -126,12 +131,17 @@ def _build_layer(
+     for name in (
+         "rearrange_mixed_qkv",
+         "_forward_core",
++        "_forward_core_decode_non_spec",
+     ):
+         setattr(
+             layer,
+             name,
+             types.MethodType(getattr(QwenGatedDeltaNetAttention, name), layer),
+         )
++    if hasattr(QwenGatedDeltaNetAttention, "_forward_packed_recurrent_decode"):
++        layer._forward_packed_recurrent_decode = types.MethodType(
++            QwenGatedDeltaNetAttention._forward_packed_recurrent_decode, layer
++        )
+     return layer
+ 
+ 
+@@ -193,7 +203,10 @@ def test_forward_core_split_matches_unified(
+     assert meta_split.num_decodes == num_decodes
+     assert meta_split.num_prefills == len(prefill_lens)
+     assert meta_split.num_decode_tokens == num_decodes
+-    assert builder.gdn_prefill_backend == "cutedsl"
++    expected_backend = (
++        "cutedsl" if current_platform.is_device_capability_family(100) else "triton"
++    )
++    assert builder.gdn_prefill_backend == expected_backend
+ 
+     num_tokens = sum(query_lens)
+ 
+@@ -300,3 +313,279 @@ def test_forward_core_split_matches_unified(
+         atol = rtol = 6e-2
+     torch.testing.assert_close(out_split, out_unified, atol=atol, rtol=rtol)
+     torch.testing.assert_close(ssm_state_split, ssm_state_unified, atol=atol, rtol=rtol)
++
++
++def test_packed_decode_is_bitwise_invariant_in_mixed_batch() -> None:
++    """A decode row must not change recurrent kernels when prefills arrive."""
++    torch.manual_seed(0)
++    device = torch.device("cuda")
++    dtype = torch.bfloat16
++    num_decodes = 2
++    num_prefill_tokens = 3
++    num_tokens = num_decodes + num_prefill_tokens
++
++    conv_state_shape, temporal_state_shape = (
++        MambaStateShapeCalculator.gated_delta_net_state_shape(
++            1, H, HV, K, V, CONV_KERNEL, num_spec=0
++        )
++    )
++    conv_state = torch.zeros(3, *conv_state_shape, dtype=dtype, device=device)
++    ssm_state = (
++        torch.randn(3, *temporal_state_shape, dtype=torch.float32, device=device) * 0.05
++    )
++    A_log = torch.randn(HV, dtype=torch.float32, device=device) * 0.1
++    dt_bias = torch.randn(HV, dtype=torch.float32, device=device) * 0.1
++    conv_weight = (
++        torch.randn(CONV_DIM, 1, CONV_KERNEL, dtype=dtype, device=device) * 0.1
++    )
++    conv_bias = torch.randn(CONV_DIM, dtype=dtype, device=device) * 0.1
++    mixed_qkv = torch.randn(num_tokens, CONV_DIM, dtype=dtype, device=device) * 0.1
++    a = torch.randn(num_tokens, HV, dtype=dtype, device=device) * 0.1
++    b = torch.randn(num_tokens, HV, dtype=dtype, device=device) * 0.1
++    state_indices = torch.arange(3, dtype=torch.int32, device=device)
++
++    decode_metadata = GDNAttentionMetadata(
++        num_prefills=0,
++        num_prefill_tokens=0,
++        num_decodes=num_decodes,
++        num_decode_tokens=num_decodes,
++        num_spec_decodes=0,
++        num_spec_decode_tokens=0,
++        num_actual_tokens=num_decodes,
++        non_spec_query_start_loc=torch.arange(
++            num_decodes + 1, dtype=torch.int32, device=device
++        ),
++        non_spec_state_indices_tensor=state_indices[:num_decodes],
++    )
++    mixed_metadata = GDNAttentionMetadata(
++        num_prefills=1,
++        num_prefill_tokens=num_prefill_tokens,
++        num_decodes=num_decodes,
++        num_decode_tokens=num_decodes,
++        num_spec_decodes=0,
++        num_spec_decode_tokens=0,
++        num_actual_tokens=num_tokens,
++        has_initial_state=torch.tensor(
++            [True, True, False], dtype=torch.bool, device=device
++        ),
++        non_spec_query_start_loc=torch.tensor(
++            [0, 1, 2, num_tokens], dtype=torch.int32, device=device
++        ),
++        non_spec_state_indices_tensor=state_indices,
++        prefill_query_start_loc=torch.tensor(
++            [0, num_prefill_tokens], dtype=torch.int32, device=device
++        ),
++        prefill_state_indices=state_indices[num_decodes:],
++        prefill_has_initial_state=torch.tensor(
++            [False], dtype=torch.bool, device=device
++        ),
++    )
++
++    def passthrough_conv(x, *args, **kwargs):
++        return x
++
++    def prefill_stub(
++        *,
++        v: torch.Tensor,
++        initial_state: torch.Tensor,
++        **kwargs,
++    ):
++        return torch.zeros_like(v), initial_state.clone()
++
++    def run(metadata, initial_ssm_state):
++        layer = _build_layer(
++            _make_vllm_config(),
++            conv_state.clone(),
++            initial_ssm_state,
++            A_log,
++            dt_bias,
++            conv_weight,
++            conv_bias,
++            enable_packed_recurrent_decode=True,
++        )
++        layer.chunk_gated_delta_rule = prefill_stub
++        with (
++            patch.object(
++                qwen_gdn_linear_attn,
++                "causal_conv1d_update",
++                side_effect=passthrough_conv,
++            ),
++            patch.object(
++                qwen_gdn_linear_attn,
++                "causal_conv1d_fn",
++                side_effect=passthrough_conv,
++            ),
++        ):
++            output = _run_forward_core(
++                layer, metadata, mixed_qkv, b, a, metadata.num_actual_tokens
++            )
++        return output, layer.kv_cache[1]
++
++    decode_output, decode_state = run(decode_metadata, ssm_state.clone())
++    mixed_output, mixed_state = run(mixed_metadata, ssm_state.clone())
++
++    torch.testing.assert_close(
++        mixed_output[:num_decodes],
++        decode_output,
++        atol=0,
++        rtol=0,
++    )
++    torch.testing.assert_close(
++        mixed_state[:num_decodes],
++        decode_state[:num_decodes],
++        atol=0,
++        rtol=0,
++    )
++
++
++@pytest.mark.skipif(
++    not current_platform.is_device_capability(90),
++    reason="FlashInfer context-parallel GDN prefill is specific to SM90.",
++)
++def test_flashinfer_prefill_is_bitwise_invariant_across_batch_sizes(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    """BIC must not let FlashInfer choose a prefill kernel from batch size."""
++    torch.manual_seed(7)
++    monkeypatch.setattr(
++        qwen_gdn_linear_attn.envs,
++        "VLLM_BATCH_INVARIANT",
++        True,
++    )
++
++    device = torch.device("cuda")
++    dtype = torch.bfloat16
++    seq_len = 64
++    num_heads = 16
++    head_dim = 128
++    batch_size = 8
++
++    q = torch.randn(1, seq_len, num_heads, head_dim, device=device, dtype=dtype)
++    k = torch.randn_like(q)
++    v = torch.randn_like(q)
++    g = -torch.rand(1, seq_len, num_heads, device=device, dtype=dtype)
++    beta = torch.rand(1, seq_len, num_heads, device=device, dtype=dtype)
++    initial_state = (
++        torch.randn(
++            1,
++            num_heads,
++            head_dim,
++            head_dim,
++            device=device,
++            dtype=torch.float32,
++        )
++        * 0.01
++    )
++
++    def run(num_seqs: int) -> tuple[torch.Tensor, torch.Tensor]:
++        cu_seqlens = (
++            torch.arange(num_seqs + 1, device=device, dtype=torch.int32) * seq_len
++        )
++        output, final_state = qwen_gdn_linear_attn.fi_chunk_gated_delta_rule(
++            q=q.repeat(1, num_seqs, 1, 1).contiguous(),
++            k=k.repeat(1, num_seqs, 1, 1).contiguous(),
++            v=v.repeat(1, num_seqs, 1, 1).contiguous(),
++            g=g.repeat(1, num_seqs, 1).contiguous(),
++            beta=beta.repeat(1, num_seqs, 1).contiguous(),
++            initial_state=initial_state.repeat(num_seqs, 1, 1, 1).contiguous(),
++            output_final_state=True,
++            cu_seqlens=cu_seqlens,
++        )
++        return output[0, :seq_len], final_state[0]
++
++    single_output, single_state = run(1)
++    batched_output, batched_state = run(batch_size)
++
++    torch.testing.assert_close(single_output, batched_output, atol=0, rtol=0)
++    torch.testing.assert_close(single_state, batched_state, atol=0, rtol=0)
++
++
++@pytest.mark.parametrize(
++    "backend",
++    (
++        ["cutedsl"]
++        if current_platform.is_device_capability_family(100)
++        else ["flashinfer", "triton"]
++    ),
++)
++def test_prefill_is_bitwise_invariant_across_canonical_partitions(
++    backend: str,
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    """One-shot and state-carry prefills must use the same 64-token graph."""
++    torch.manual_seed(11)
++    monkeypatch.setattr(qwen_gdn_linear_attn.envs, "VLLM_BATCH_INVARIANT", True)
++
++    device = torch.device("cuda")
++    dtype = torch.bfloat16
++    seq_len = 3 * FLA_CHUNK_SIZE
++    num_heads = 8
++    head_dim = 128
++    q = torch.randn(1, seq_len, num_heads, head_dim, device=device, dtype=dtype) * 0.1
++    k = torch.randn_like(q) * 0.1
++    v = torch.randn_like(q) * 0.1
++    g = -torch.rand(1, seq_len, num_heads, device=device, dtype=torch.float32) * 0.1
++    beta = torch.rand(1, seq_len, num_heads, device=device, dtype=dtype)
++    initial_state = (
++        torch.randn(
++            1,
++            num_heads,
++            head_dim,
++            head_dim,
++            device=device,
++            dtype=torch.float32,
++        )
++        * 0.01
++    )
++
++    config = _make_vllm_config()
++    config.additional_config = {"gdn_prefill_backend": backend}
++    with set_current_vllm_config(config):
++        op = ChunkGatedDeltaRule()
++
++    def run(start: int, end: int, state: torch.Tensor):
++        length = end - start
++        cu_seqlens_cpu = torch.tensor([0, length], dtype=torch.int32)
++        cu_seqlens = cu_seqlens_cpu.to(device)
++        if backend == "cutedsl":
++            from vllm.model_executor.layers.mamba.ops.gdn_chunk_cutedsl import (
++                prepare_metadata_cutedsl,
++            )
++
++            chunk_indices, chunk_offsets = prepare_metadata_cutedsl(
++                cu_seqlens, length, FLA_CHUNK_SIZE
++            )
++        else:
++            chunk_indices = prepare_chunk_indices(cu_seqlens_cpu, FLA_CHUNK_SIZE).to(
++                device
++            )
++            chunk_offsets = prepare_chunk_offsets(cu_seqlens_cpu, FLA_CHUNK_SIZE).to(
++                device
++            )
++        return op(
++            q=q[:, start:end].contiguous(),
++            k=k[:, start:end].contiguous(),
++            v=v[:, start:end].contiguous(),
++            g=g[:, start:end].contiguous(),
++            beta=beta[:, start:end].contiguous(),
++            initial_state=state.contiguous(),
++            output_final_state=True,
++            cu_seqlens=cu_seqlens,
++            chunk_indices=chunk_indices,
++            chunk_offsets=chunk_offsets,
++            use_qk_l2norm_in_kernel=False,
++        )
++
++    full_output, full_state = run(0, seq_len, initial_state.clone())
++    partitioned_output = []
++    partitioned_state = initial_state.clone()
++    for start in range(0, seq_len, FLA_CHUNK_SIZE):
++        output, partitioned_state = run(
++            start, start + FLA_CHUNK_SIZE, partitioned_state
++        )
++        partitioned_output.append(output)
++
++    torch.testing.assert_close(
++        torch.cat(partitioned_output, dim=1), full_output, atol=0, rtol=0
++    )
++    torch.testing.assert_close(partitioned_state, full_state, atol=0, rtol=0)
+diff --git a/tests/v1/core/test_scheduler.py b/tests/v1/core/test_scheduler.py
+index ac966ad11b1a..feebb79b41cb 100644
+--- a/tests/v1/core/test_scheduler.py
++++ b/tests/v1/core/test_scheduler.py
+@@ -47,6 +47,30 @@
+ pytestmark = pytest.mark.cpu_test
+ 
+ 
++def test_batch_invariant_mamba_prefill_uses_canonical_chunks() -> None:
++    scheduler = Mock(
++        mamba_prefill_alignment=64,
++        max_num_scheduled_tokens=256,
++        scheduler_config=Mock(long_prefill_token_threshold=0),
++        use_eagle=False,
++        needs_mamba_cache_alignment=False,
++        mamba_partial_cache_hit=False,
++        hash_block_size=16,
++    )
++    request = Mock(
++        num_computed_tokens=0,
++        num_prompt_tokens=193,
++        num_tokens=193,
++        shared_prefix_boundary=0,
++    )
++
++    assert Scheduler._mamba_block_aligned_split(scheduler, request, 73) == 64
++    request.num_computed_tokens = 64
++    assert Scheduler._mamba_block_aligned_split(scheduler, request, 73) == 64
++    request.num_computed_tokens = 128
++    assert Scheduler._mamba_block_aligned_split(scheduler, request, 65) == 65
++
++
+ def test_make_scheduled_encoder_input_stats_output_embeddings():
+     scheduler = create_scheduler()
+     mm_features = [
+diff --git a/tests/v1/determinism/test_online_batch_invariance.py b/tests/v1/determinism/test_online_batch_invariance.py
+index de80e4918c1e..ef0ccc038be5 100644
+--- a/tests/v1/determinism/test_online_batch_invariance.py
++++ b/tests/v1/determinism/test_online_batch_invariance.py
+@@ -13,6 +13,8 @@
+ import os
+ import random
+ import sys
++import threading
++from concurrent.futures import ThreadPoolExecutor
+ from typing import Any
+ 
+ import openai
+@@ -166,3 +168,60 @@ def test_logprobs_bitwise_batch_invariance_bs1_vs_bsN(
+             client=client,
+             model_name=TEST_MODEL,
+         )
++
++
++@skip_if_not_cuda
++def test_qwen_gdn_chunked_prefill_is_batch_invariant() -> None:
++    if TEST_MODEL != "Qwen/Qwen3.5-0.8B":
++        pytest.skip("This regression requires a public Qwen GDN model.")
++
++    server_args = [
++        "--max-model-len=512",
++        "--max-num-batched-tokens=128",
++        "--max-num-seqs=8",
++        "--enforce-eager",
++    ]
++    target_prompt = [100] * 193
++    target_sampling: dict[str, Any] = {
++        "temperature": 0.0,
++        "max_tokens": 8,
++        "logprobs": 5,
++    }
++
++    with RemoteOpenAIServer(TEST_MODEL, server_args) as server:
++        client = server.get_client()
++        baseline = _request_completion(
++            client, TEST_MODEL, target_prompt, target_sampling
++        )
++        assert baseline is not None
++
++        decode_started = threading.Event()
++        load_client = server.get_client()
++
++        def run_decode_load() -> None:
++            stream = load_client.completions.create(
++                model=TEST_MODEL,
++                prompt=[101] * 73,
++                temperature=0.0,
++                max_tokens=128,
++                stream=True,
++            )
++            for chunk in stream:
++                if chunk.choices:
++                    decode_started.set()
++
++        with ThreadPoolExecutor(max_workers=1) as executor:
++            load = executor.submit(run_decode_load)
++            assert decode_started.wait(timeout=30), "Decode load did not start."
++            mixed = _request_completion(
++                client, TEST_MODEL, target_prompt, target_sampling
++            )
++            load.result(timeout=30)
++
++        assert mixed is not None
++        baseline_tokens, baseline_logprobs = _extract_tokens_and_logprobs(
++            baseline["choices"][0]
++        )
++        mixed_tokens, mixed_logprobs = _extract_tokens_and_logprobs(mixed["choices"][0])
++        assert baseline_tokens == mixed_tokens
++        assert baseline_logprobs == mixed_logprobs
+diff --git a/tests/v1/kv_connector/unit/test_nixl_connector_hma.py b/tests/v1/kv_connector/unit/test_nixl_connector_hma.py
+index c3058eaddbad..3fdbea445647 100644
+--- a/tests/v1/kv_connector/unit/test_nixl_connector_hma.py
++++ b/tests/v1/kv_connector/unit/test_nixl_connector_hma.py
+@@ -1190,7 +1190,7 @@ def test_compute_physical_blocks_per_logical(ssm_sizes, block_len, expected_rati
+         # Qwen/Qwen3.5-0.8B (GDN, symmetric: num_v=num_k=16)
+         # key_dim=2048, value_dim=2048, conv_dim=6144
+         pytest.param(
+-            "gdn_attention",
++            "qwen_gdn_attention",
+             1,
+             6144,
+             3,
+@@ -1199,7 +1199,7 @@ def test_compute_physical_blocks_per_logical(ssm_sizes, block_len, expected_rati
+             id="qwen35_08b_tp1",
+         ),
+         pytest.param(
+-            "gdn_attention",
++            "qwen_gdn_attention",
+             4,
+             1536,
+             3,
+@@ -1210,7 +1210,7 @@ def test_compute_physical_blocks_per_logical(ssm_sizes, block_len, expected_rati
+         # Qwen/Qwen3.5-4B (GDN, asymmetric: num_v=32, num_k=16, K:V=1:2)
+         # key_dim=2048, value_dim=4096, conv_dim=8192
+         pytest.param(
+-            "gdn_attention",
++            "qwen_gdn_attention",
+             1,
+             8192,
+             3,
+@@ -1221,7 +1221,7 @@ def test_compute_physical_blocks_per_logical(ssm_sizes, block_len, expected_rati
+         # Qwen/Qwen3.5-27B (GDN, asymmetric: num_v=48, num_k=16, K:V=1:3)
+         # key_dim=2048, value_dim=6144, conv_dim=10240
+         pytest.param(
+-            "gdn_attention",
++            "qwen_gdn_attention",
+             1,
+             10240,
+             3,
+@@ -1230,7 +1230,7 @@ def test_compute_physical_blocks_per_logical(ssm_sizes, block_len, expected_rati
+             id="qwen35_27b_tp1",
+         ),
+         pytest.param(
+-            "gdn_attention",
++            "qwen_gdn_attention",
+             8,
+             1280,
+             3,
+@@ -1295,6 +1295,7 @@ def test_derive_mamba_conv_split(
+         "mamba1": MambaAttentionBackendEnum.MAMBA1,
+         "mamba2": MambaAttentionBackendEnum.MAMBA2,
+         "gdn_attention": MambaAttentionBackendEnum.GDN_ATTN,
++        "qwen_gdn_attention": MambaAttentionBackendEnum.QWEN_GDN_ATTN,
+     }
+     mamba_type_enum = _TYPE_MAP[mamba_type]
+ 
+diff --git a/vllm/distributed/kv_transfer/kv_connector/v1/ssm_conv_transfer_utils.py b/vllm/distributed/kv_transfer/kv_connector/v1/ssm_conv_transfer_utils.py
+index 00dc05bfc4a9..60da5b0c6f4f 100644
+--- a/vllm/distributed/kv_transfer/kv_connector/v1/ssm_conv_transfer_utils.py
++++ b/vllm/distributed/kv_transfer/kv_connector/v1/ssm_conv_transfer_utils.py
+@@ -126,6 +126,7 @@ def derive_mamba_conv_split(
+         MambaAttentionBackendEnum.MAMBA1,
+         MambaAttentionBackendEnum.MAMBA2,
+         MambaAttentionBackendEnum.GDN_ATTN,
++        MambaAttentionBackendEnum.QWEN_GDN_ATTN,
+     )
+     if mamba_spec.mamba_type not in _supported:
+         raise NotImplementedError(
+@@ -187,7 +188,10 @@ def derive_mamba_conv_split(
+         x_local = intermediate_size // local_tp
+         b_local = groups_ss // local_tp
+         local_proj_dims = (x_local, b_local, b_local)
+-    elif mamba_spec.mamba_type == MambaAttentionBackendEnum.GDN_ATTN:
++    elif mamba_spec.mamba_type in (
++        MambaAttentionBackendEnum.GDN_ATTN,
++        MambaAttentionBackendEnum.QWEN_GDN_ATTN,
++    ):
+         # GDN: conv = [Q, K, V] where dim(Q) == dim(K) == key_dim.
+         # conv_dim = key_dim*2 + value_dim (all global, divided by TP).
+         # Temporal state shape is (num_v_heads/TP, head_v_dim, head_k_dim).
+diff --git a/vllm/model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py b/vllm/model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py
+index 567c063bb3b9..9a73d2a97302 100644
+--- a/vllm/model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py
++++ b/vllm/model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py
+@@ -64,6 +64,7 @@
+     direct_register_custom_op,
+ )
+ from vllm.v1.attention.backends.gdn_attn import GDNAttentionMetadata
++from vllm.v1.attention.backends.registry import MambaAttentionBackendEnum
+ 
+ # Optional ROCm AITER Triton kernels for the GDN decode path.
+ # Availability is checked centrally via rocm_aiter_ops; the actual function
+@@ -198,6 +199,9 @@ def fi_chunk_gated_delta_rule(
+         initial_state=fi_state,
+         output_final_state=output_final_state,
+         cu_seqlens=cu_seqlens,
++        # "auto" selects a kernel from the batch shape. Pin one implementation
++        # so a sequence follows the same numeric path in every BIC batch.
++        use_cp=False if envs.VLLM_BATCH_INVARIANT else "auto",
+     )
+     # FlashInfer returns (output, state) when output_final_state=True,
+     # or just output when output_final_state=False.
+@@ -340,6 +344,10 @@ def forward_cutedsl(
+ 
+ @PluggableLayer.register("qwen_gated_delta_net_attention")
+ class QwenGatedDeltaNetAttention(GatedDeltaNetAttention):
++    @property
++    def mamba_type(self) -> MambaAttentionBackendEnum:
++        return MambaAttentionBackendEnum.QWEN_GDN_ATTN
++
+     def get_state_shape(
+         self,
+     ) -> tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...], tuple[int, ...]]:
+@@ -1398,25 +1406,38 @@ def _forward_core(
+ 
+         # 2.2: Process non-spec-decode part
+         if split_non_spec:
+-            query_decode, key_decode, value_decode = self.rearrange_mixed_qkv(
+-                mixed_qkv_non_spec[:num_decode_tokens]  # type: ignore[index]
+-            )
+-            core_attn_out_decode, _ = fused_sigmoid_gating_delta_rule_update(
+-                A_log=self.A_log,
+-                a=a[:num_decode_tokens],
+-                b=b[:num_decode_tokens],
+-                dt_bias=self.dt_bias,
+-                q=query_decode,
+-                k=key_decode,
+-                v=value_decode,
+-                initial_state=ssm_state,
+-                inplace_final_state=True,
+-                cu_seqlens=non_spec_query_start_loc[  # type: ignore[index]
+-                    : attn_metadata.num_decodes + 1
+-                ],
+-                ssm_state_indices=non_spec_state_indices_tensor,
+-                use_qk_l2norm_in_kernel=True,
+-            )
++            mixed_qkv_decode = mixed_qkv_non_spec[:num_decode_tokens]  # type: ignore[index]
++            if self.enable_packed_recurrent_decode:
++                core_attn_out_decode = self._forward_packed_recurrent_decode(
++                    mixed_qkv=mixed_qkv_decode,
++                    a=a[:num_decode_tokens],
++                    b=b[:num_decode_tokens],
++                    core_attn_out=core_attn_out[:num_decode_tokens],
++                    ssm_state=ssm_state,
++                    state_indices=non_spec_state_indices_tensor[  # type: ignore[index]
++                        : attn_metadata.num_decodes
++                    ],
++                )
++            else:
++                query_decode, key_decode, value_decode = self.rearrange_mixed_qkv(
++                    mixed_qkv_decode
++                )
++                core_attn_out_decode, _ = fused_sigmoid_gating_delta_rule_update(
++                    A_log=self.A_log,
++                    a=a[:num_decode_tokens],
++                    b=b[:num_decode_tokens],
++                    dt_bias=self.dt_bias,
++                    q=query_decode,
++                    k=key_decode,
++                    v=value_decode,
++                    initial_state=ssm_state,
++                    inplace_final_state=True,
++                    cu_seqlens=non_spec_query_start_loc[  # type: ignore[index]
++                        : attn_metadata.num_decodes + 1
++                    ],
++                    ssm_state_indices=non_spec_state_indices_tensor,
++                    use_qk_l2norm_in_kernel=True,
++                )
+         else:
+             core_attn_out_decode = None
+ 
+@@ -1600,20 +1621,40 @@ def _forward_core_decode_non_spec(
+             conv_state_indices=non_spec_state_indices_tensor[:num_actual_tokens],  # type: ignore[index]
+             validate_data=False,
+         )
+-        out_buf = core_attn_out[:num_actual_tokens].unsqueeze(1)
+-        fused_recurrent_gated_delta_rule_packed_decode(
++        self._forward_packed_recurrent_decode(
+             mixed_qkv=mixed_qkv_non_spec,
+             a=a,
+             b=b,
++            core_attn_out=core_attn_out[:num_actual_tokens],
++            ssm_state=ssm_state,
++            state_indices=non_spec_state_indices_tensor[:num_actual_tokens],  # type: ignore[index]
++        )
++        return
++
++    def _forward_packed_recurrent_decode(
++        self,
++        mixed_qkv: torch.Tensor,
++        a: torch.Tensor,
++        b: torch.Tensor,
++        core_attn_out: torch.Tensor,
++        ssm_state: torch.Tensor,
++        state_indices: torch.Tensor,
++    ) -> torch.Tensor:
++        """Run the shared packed kernel for pure and mixed decode steps."""
++        out_buf = core_attn_out.unsqueeze(1)
++        fused_recurrent_gated_delta_rule_packed_decode(
++            mixed_qkv=mixed_qkv,
++            a=a,
++            b=b,
+             A_log=self.A_log,
+             dt_bias=self.dt_bias,
+             scale=self.head_k_dim**-0.5,
+             initial_state=ssm_state,
+             out=out_buf,
+-            ssm_state_indices=non_spec_state_indices_tensor[:num_actual_tokens],  # type: ignore[index]
++            ssm_state_indices=state_indices,
+             use_qk_l2norm_in_kernel=True,
+         )
+-        return
++        return out_buf.transpose(0, 1)
+ 
+ 
+ def qwen_gdn_attention_core(
+diff --git a/vllm/platforms/xpu.py b/vllm/platforms/xpu.py
+index 1104f291891e..1698afd1c371 100644
+--- a/vllm/platforms/xpu.py
++++ b/vllm/platforms/xpu.py
+@@ -379,7 +379,7 @@ def update_block_size_for_backend(cls, vllm_config: "VllmConfig") -> None:
+         kernel_block_size = None
+         for layer in attn_layers.values():
+             b = layer.get_attn_backend()
+-            if b.get_name() == "GDN_ATTN":
++            if b.get_name() in ("GDN_ATTN", "QWEN_GDN_ATTN"):
+                 kernel_block_size = 64
+                 break
+ 
+diff --git a/vllm/v1/attention/backend.py b/vllm/v1/attention/backend.py
+index 97bfd419f8c1..0dcf9394d94f 100644
+--- a/vllm/v1/attention/backend.py
++++ b/vllm/v1/attention/backend.py
+@@ -277,6 +277,11 @@ def supports_non_causal(cls) -> bool:
+     def supports_batch_invariance(cls) -> bool:
+         return False
+ 
++    @classmethod
++    def get_batch_invariant_prefill_chunk_size(cls) -> int | None:
++        """Return the canonical prefill partition required for BIC."""
++        return None
++
+     @classmethod
+     def supports_kv_connector(cls) -> bool:
+         return True
+diff --git a/vllm/v1/attention/backends/gdn_attn.py b/vllm/v1/attention/backends/gdn_attn.py
+index 0b32dfcf9444..f353b38f8645 100644
+--- a/vllm/v1/attention/backends/gdn_attn.py
++++ b/vllm/v1/attention/backends/gdn_attn.py
+@@ -38,6 +38,26 @@ def is_ssm(cls) -> bool:
+         return True
+ 
+ 
++class QwenGDNAttentionBackend(GDNAttentionBackend):
++    """GDN backend for the batch-invariant Qwen CUDA execution path."""
++
++    @staticmethod
++    def get_name() -> str:
++        return "QWEN_GDN_ATTN"
++
++    @classmethod
++    def supports_batch_invariance(cls) -> bool:
++        from vllm.platforms import current_platform
++
++        return current_platform.is_cuda() and current_platform.has_device_capability(90)
++
++    @classmethod
++    def get_batch_invariant_prefill_chunk_size(cls) -> int:
++        from vllm.third_party.flash_linear_attention.ops.utils import FLA_CHUNK_SIZE
++
++        return FLA_CHUNK_SIZE
++
++
+ @dataclass
+ class GDNAttentionMetadata:
+     num_prefills: int
+diff --git a/vllm/v1/attention/backends/registry.py b/vllm/v1/attention/backends/registry.py
+index 94fc24f1cac6..918efe844973 100644
+--- a/vllm/v1/attention/backends/registry.py
++++ b/vllm/v1/attention/backends/registry.py
+@@ -178,6 +178,7 @@ class MambaAttentionBackendEnum(Enum, metaclass=_AttentionBackendEnumMeta):
+     SHORT_CONV = "vllm.v1.attention.backends.short_conv_attn.ShortConvAttentionBackend"
+     LINEAR = "vllm.v1.attention.backends.linear_attn.LinearAttentionBackend"
+     GDN_ATTN = "vllm.v1.attention.backends.gdn_attn.GDNAttentionBackend"
++    QWEN_GDN_ATTN = "vllm.v1.attention.backends.gdn_attn.QwenGDNAttentionBackend"
+     # Placeholder for third-party/custom backends - must be registered before use
+     # set to None to avoid alias with other backend, whose value is an empty string
+     CUSTOM = None
+diff --git a/vllm/v1/core/sched/scheduler.py b/vllm/v1/core/sched/scheduler.py
+index 99a8b44041f9..5b3fd67fbf7f 100644
+--- a/vllm/v1/core/sched/scheduler.py
++++ b/vllm/v1/core/sched/scheduler.py
+@@ -7,6 +7,7 @@
+ from dataclasses import replace
+ from typing import Any
+ 
++import vllm.envs as envs
+ from vllm.compilation.cuda_graph import CUDAGraphStat
+ from vllm.config import KVEventsConfig, VllmConfig
+ from vllm.distributed.ec_transfer.ec_connector.base import (
+@@ -53,7 +54,7 @@
+ )
+ from vllm.v1.core.sched.utils import check_stop, remove_all
+ from vllm.v1.engine import EngineCoreEventType, EngineCoreOutput, EngineCoreOutputs
+-from vllm.v1.kv_cache_interface import KVCacheConfig
++from vllm.v1.kv_cache_interface import KVCacheConfig, MambaSpec
+ from vllm.v1.metrics.perf import ModelMetrics, PerfStats
+ from vllm.v1.metrics.stats import PrefixCacheStats, SchedulerStats
+ from vllm.v1.outputs import DraftTokenIds, KVConnectorOutput, ModelRunnerOutput
+@@ -311,15 +312,58 @@ def __init__(
+         # Blocks that async KV loads will overwrite this step, skipped from
+         # zeroing since the zeroing could race the out-of-band write.
+         self._skip_zero_block_ids: set[int] = set()
+-        self.need_mamba_block_aligned_split = (
++        needs_mamba_cache_alignment = (
+             self.has_mamba_layers and self.cache_config.mamba_cache_mode == "align"
+         )
++        self.needs_mamba_cache_alignment = needs_mamba_cache_alignment
++        batch_invariant_prefill_chunk_sizes: set[int] = set()
++        if envs.VLLM_BATCH_INVARIANT:
++            for group in kv_cache_config.kv_cache_groups:
++                spec = group.kv_cache_spec
++                if not isinstance(spec, MambaSpec):
++                    continue
++                chunk_size = (
++                    spec.mamba_type.get_class().get_batch_invariant_prefill_chunk_size()
++                )
++                if chunk_size is not None:
++                    batch_invariant_prefill_chunk_sizes.add(chunk_size)
++        if len(batch_invariant_prefill_chunk_sizes) > 1:
++            raise ValueError(
++                "All recurrent backends must use the same batch-invariant "
++                "prefill chunk size."
++            )
++        batch_invariant_prefill_chunk_size = next(
++            iter(batch_invariant_prefill_chunk_sizes), None
++        )
++        if batch_invariant_prefill_chunk_size is not None:
++            if self.max_num_scheduled_tokens < batch_invariant_prefill_chunk_size:
++                raise ValueError(
++                    "The effective scheduler token budget must be at least the "
++                    "batch-invariant prefill chunk size "
++                    f"({batch_invariant_prefill_chunk_size})."
++                )
++            long_prefill_threshold = self.scheduler_config.long_prefill_token_threshold
++            if 0 < long_prefill_threshold < batch_invariant_prefill_chunk_size:
++                raise ValueError(
++                    "long_prefill_token_threshold must be zero or at least the "
++                    "batch-invariant prefill chunk size "
++                    f"({batch_invariant_prefill_chunk_size})."
++                )
++            if needs_mamba_cache_alignment:
++                raise NotImplementedError(
++                    "Batch-invariant recurrent prefill does not yet support "
++                    "Mamba cache alignment."
++                )
++
++        self.mamba_prefill_alignment = batch_invariant_prefill_chunk_size or (
++            self.cache_config.block_size if needs_mamba_cache_alignment else 1
++        )
++        self.need_mamba_block_aligned_split = self.mamba_prefill_alignment > 1
+         # A finer prefix_match_unit is configured: a mamba partial tail entry
+         # can only be registered by a step ending exactly at the prompt's last
+         # hash boundary, so the split adds that stop.
+         self.mamba_partial_cache_hit = (
+-            self.need_mamba_block_aligned_split
+-            and self.hash_block_size < self.block_size
++            needs_mamba_cache_alignment and self.hash_block_size < self.block_size
+         )
+ 
+         # Counts of non-empty steps scheduled / processed. update_from_output
+@@ -366,13 +410,13 @@ def _mamba_block_aligned_split(
+         num_new_local_computed_tokens: int = 0,
+         num_external_computed_tokens: int = 0,
+     ) -> int:
+-        """Clip a prefill chunk so it ends where Mamba state must be cached.
++        """Clip recurrent prefill at required arithmetic or cache boundaries.
+ 
+-        In "align" cache mode reusable SSM states are materialized at block
+-        boundaries, plus mandatory early stops (the prompt's partial-tail hash
+-        boundary, a detected shared-prefix junction). If a block is larger
+-        than the configured prefill chunk limit, intermediate chunks keep
+-        private running state until they reach the next cacheable position.
++        BIC uses a fixed arithmetic grid for non-final chunks. In "align"
++        cache mode, reusable SSM states are also materialized at block
++        boundaries and mandatory early stops. If a cache block is larger than
++        the configured prefill limit, intermediate chunks keep private state
++        until they reach the next cacheable position.
+         """
+         start = (
+             request.num_computed_tokens
+@@ -384,19 +428,19 @@ def _mamba_block_aligned_split(
+         if start >= max(request.num_prompt_tokens, request.num_tokens - 1):
+             return num_new_tokens
+ 
+-        block_size = self.cache_config.block_size
+-        # The last block-aligned position whose state can be cached. With
+-        # Eagle, FullAttn prunes the last matching block, so back off one
+-        # block to avoid a Mamba cache miss.
+-        last_cache_position = request.num_tokens - request.num_tokens % block_size
++        block_size = self.mamba_prefill_alignment
++        # The last position on the required grid. With Eagle, FullAttn prunes
++        # the last matching block, so back off one block to avoid a Mamba
++        # cache miss.
++        last_aligned_position = request.num_tokens - request.num_tokens % block_size
+         if self.use_eagle:
+-            last_cache_position = max(last_cache_position - block_size, 0)
++            last_aligned_position = max(last_aligned_position - block_size, 0)
+ 
+         end = start + num_new_tokens
+-        # Until `last_cache_position`, prefer chunks ending on block
++        # Until `last_aligned_position`, prefer chunks ending on block
+         # boundaries. When a block cannot fit in any configured prefill chunk,
+         # allow sub-block progress and re-align at the next reachable boundary.
+-        if end < last_cache_position:
++        if end < last_aligned_position:
+             max_prefill_tokens = self.max_num_scheduled_tokens
+             long_prefill_threshold = self.scheduler_config.long_prefill_token_threshold
+             if long_prefill_threshold > 0:
+@@ -416,14 +460,14 @@ def _mamba_block_aligned_split(
+             # the block grid before running on, so the crossed boundary's
+             # state is materialized (unless it is past the cacheable range).
+             next_block_boundary
+-            if start % block_size != 0 and next_block_boundary <= last_cache_position
++            if start % block_size != 0 and next_block_boundary <= last_aligned_position
+             else 0,
+             # Never run past the last cacheable block boundary mid-chunk.
+-            last_cache_position,
++            last_aligned_position if self.needs_mamba_cache_alignment else 0,
+             # Fine-grained hits: the prompt's partial-tail entry can only be
+             # registered by a chunk ending exactly at its last hash boundary.
+             tail_boundary
+-            if last_cache_position < tail_boundary < request.num_prompt_tokens
++            if last_aligned_position < tail_boundary < request.num_prompt_tokens
+             else 0,
+             # Marconi shared-prefix junction, block-floored (a sub-block
+             # junction's state is not separately cacheable): cache its state

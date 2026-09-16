@@ -1,0 +1,28 @@
+--- /home/jon/dual-spark-inference-kv-paging/files/paging/offloading_scheduler.py
++++ /home/jon/dual-spark-inference-kv-paging/experiments/allocation-deferral-implementation-20260914/offloading_scheduler.py
+@@ -332,6 +332,7 @@
+     partial_tail_boundary: int | None = None
+     # True once on_request_finished has been signaled to the manager.
+     finished_signaled: bool = False
++    allocation_pending: bool = False
+ 
+     def __post_init__(self) -> None:
+         self.group_states = tuple(
+@@ -1572,7 +1573,7 @@
+                 continue
+             req_status.finished_signaled = True
+             self.manager.on_request_finished(req_status.req_context)
+-            if not req_status.transfer_jobs:
++            if not req_status.transfer_jobs and not getattr(req_status, 'allocation_pending', False):
+                 del self._req_status[req_id]
+         self._current_batch_load_jobs = {}
+         self._current_batch_jobs_to_flush = set()
+@@ -1664,7 +1665,7 @@
+ 
+             del self._jobs[job_id]
+             req_status.transfer_jobs.remove(job_id)
+-            if req_status.finished_signaled and not req_status.transfer_jobs:
++            if req_status.finished_signaled and not req_status.transfer_jobs and not getattr(req_status, 'allocation_pending', False):
+                 del self._req_status[job_status.req_id]
+ 
+     def get_stats(self) -> OffloadingConnectorStats | None:

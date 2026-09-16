@@ -1,0 +1,15 @@
+--- a/ple_layer.py
++++ b/ple_layer.py
+@@ -128,6 +128,12 @@
+ ) -> QuantizeMethodBase | None:
+     """Select global-scale FP8 only for quantized PLE checkpoint shards."""
+ 
++    # Checkpoint compatibility only: this mixed ModelOpt checkpoint declares
++    # the same global-scale FP8 PLE format supported below by upstream.
++    from vllm.model_executor.layers.quantization.modelopt import ModelOptMixedPrecisionConfig
++    if isinstance(quant_config, ModelOptMixedPrecisionConfig):
++        if quant_config._resolve_quant_algo(prefix) == "FP8":
++            return Qwen4ExpPLEFp8EmbeddingMethod()
+     if not isinstance(quant_config, Fp8Config):
+         return None
+     if not quant_config.is_checkpoint_fp8_serialized:

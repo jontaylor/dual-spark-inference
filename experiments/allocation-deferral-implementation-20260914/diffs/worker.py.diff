@@ -1,0 +1,29 @@
+--- /home/jon/dual-spark-inference-kv-paging/experiments/allocation-deferral-20260914/distributed__kv_transfer__kv_connector__v1__offloading__worker.py
++++ /home/jon/dual-spark-inference-kv-paging/experiments/allocation-deferral-implementation-20260914/worker.py
+@@ -271,6 +271,10 @@
+         """
+         assert self.worker is not None
+         finished_recving: set[str] = set()
++        poll = getattr(self.worker, 'poll_source_preserved', None)
++        if poll is not None:
++            for jid in poll():
++                self._connector_worker_meta.source_preserved[jid] = {self.worker.rank}
+         for transfer_result in self.worker.get_finished():
+             # we currently do not support job failures
+             job_id = transfer_result.job_id
+@@ -294,11 +298,14 @@
+             if req_id is not None:
+                 finished_recving.add(req_id)
+ 
++        if poll is not None:
++            for jid in poll():
++                self._connector_worker_meta.source_preserved[jid] = {self.worker.rank}
+         return set(), finished_recving
+ 
+     def build_connector_worker_meta(self) -> OffloadingWorkerMetadata | None:
+         """Return completed transfer job IDs since the last call."""
+-        if not self._connector_worker_meta.completed_jobs:
++        if not (self._connector_worker_meta.completed_jobs or self._connector_worker_meta.source_preserved):
+             return None
+         meta = self._connector_worker_meta
+         self._connector_worker_meta = OffloadingWorkerMetadata()

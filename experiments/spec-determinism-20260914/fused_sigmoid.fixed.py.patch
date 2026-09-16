@@ -1,0 +1,45 @@
+--- /home/jon/vllm-gb10-kv-paging/vllm/third_party/flash_linear_attention/ops/fused_sigmoid_gating.py
++++ fused_sigmoid.fixed.py
+@@ -10,6 +10,7 @@
+ import torch
+ 
+ from vllm.triton_utils import tl, triton
++from vllm.third_party.flash_linear_attention.ops.op import exp
+ 
+ 
+ @triton.heuristics(
+@@ -136,12 +137,12 @@
+         b_beta = tl.sigmoid(b_b.to(tl.float32))
+ 
+         if USE_QK_L2NORM_IN_KERNEL:
+-            b_q = b_q * (tl.rsqrt(tl.sum(b_q * b_q) + 1e-6))
+-            b_k = b_k * (tl.rsqrt(tl.sum(b_k * b_k) + 1e-6))
++            b_q = b_q / tl.sqrt(tl.sum(b_q * b_q) + 1e-6)
++            b_k = b_k / tl.sqrt(tl.sum(b_k * b_k) + 1e-6)
+         b_q = b_q * scale
+         # [BV, BK]
+         if not IS_KDA:
+-            b_h *= tl.exp(b_g)
++            b_h *= exp(b_g)
+         else:
+             b_h *= tl.exp(b_g[None, :])
+         # [BV]
+@@ -168,6 +169,9 @@
+             p_ht = ht + (bos + i_t) * stride_final_state_token
+             p_ht = p_ht + i_hv * V * K + o_v[:, None] * K + o_k[None, :]
+             tl.store(p_ht, b_h.to(p_ht.dtype.element_ty), mask=mask_h)
++
++        # Match a cache write/read between ordinary decode steps.
++        b_h = b_h.to(ht.dtype.element_ty).to(tl.float32)
+ 
+         # Update pointers for next timestep
+         p_q += H * K
+@@ -209,7 +213,7 @@
+     NK, NV = triton.cdiv(K, BK), triton.cdiv(V, BV)
+     assert NK == 1, "NK > 1 is not supported yet"
+     num_stages = 3
+-    num_warps = 4
++    num_warps = 1
+ 
+     if cu_seqlens is not None and q.shape[0] != 1:
+         raise ValueError(

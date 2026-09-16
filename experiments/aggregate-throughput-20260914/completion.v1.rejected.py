@@ -1,0 +1,599 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+"""Completion-only Qwen4 snapshots using the aligned connector's disk budget."""
+
+import hashlib
+from array import array
+from collections import OrderedDict
+from dataclasses import dataclass, field
+
+from vllm.distributed.kv_transfer.kv_connector.v1.offloading.common import (
+    OffloadingConnectorMetadata,
+    OffloadingWorkerMetadata,
+    TransferJob,
+)
+from vllm.distributed.kv_transfer.kv_connector.v1.offloading.scheduler import (
+    TransferJobStatus,
+)
+from vllm.logger import init_logger
+from vllm.v1.kv_cache_interface import (
+    CircularBufferSpec,
+    MambaSpec,
+    UniformTypeKVCacheSpecs,
+)
+from vllm.v1.kv_offload.base import GPULoadStoreSpec, LookupResult, make_offload_key
+from vllm.v1.request import RequestStatus
+
+logger = init_logger(__name__)
+
+
+def prefix_digests(tokens, salt, lengths):
+    """Hash candidate prefixes in one pass, even with many saved turns."""
+    lengths = sorted(set(lengths))
+    if not lengths:
+        return {}
+    h = hashlib.sha256(b"gb10-completion-v1\0")
+    salt = (salt or "").encode()
+    h.update(len(salt).to_bytes(8, "little"))
+    h.update(salt)
+    raw = memoryview(array("I", tokens[: lengths[-1]])).cast("B")
+    result = {}
+    start = 0
+    for length in lengths:
+        end = length * 4
+        h.update(raw[start:end])
+        result[length] = h.digest()
+        start = end
+    return result
+
+
+def prefix_digest(tokens, salt):
+    return prefix_digests(tokens, salt, [len(tokens)])[len(tokens)]
+
+
+def group_spec(group):
+    spec = group.kv_cache_spec
+    if isinstance(spec, UniformTypeKVCacheSpecs):
+        return next(iter(spec.kv_cache_specs.values()))
+    return spec
+
+
+def eligible(request):
+    return not (
+        request.mm_features
+        or request.prompt_embeds is not None
+        or request.lora_request is not None
+        or request.skip_reading_prefix_cache
+    )
+
+
+@dataclass
+class CompletionRecord:
+    witness_length: int
+    digest: bytes
+    boundary: int
+    # Transport-group index, logical page index, storage key.
+    pages: list[tuple[int, int, bytes]]
+
+
+@dataclass
+class CompletionSave:
+    record: CompletionRecord
+    block_ids: tuple[list[int], ...]
+    job_id: int
+
+
+@dataclass
+class CompletionMetadata(OffloadingConnectorMetadata):
+    completion_saves: dict[str, CompletionSave] = field(default_factory=dict)
+    checkpoint_requests: list[tuple[str, int]] = field(default_factory=list)
+    checkpoint_finished: set[str] = field(default_factory=set)
+
+
+@dataclass
+class CompletionWorkerMetadata(OffloadingWorkerMetadata):
+    invalid_completions: set[int] = field(default_factory=set)
+
+    def aggregate(self, other):
+        base = super().aggregate(other)
+        assert isinstance(base, OffloadingWorkerMetadata)
+        return CompletionWorkerMetadata(
+            completed_jobs=base.completed_jobs,
+            transfer_stats=base.transfer_stats,
+            invalid_completions=self.invalid_completions
+            | getattr(other, "invalid_completions", set()),
+        )
+
+
+class CompletionCache:
+    """Scheduler-owned index; disk keys remain evictable after publication."""
+
+    def __init__(self, connector, groups, capacity=256):
+        self.connector = connector
+        self.scheduler = connector.connector_scheduler
+        self.groups = groups
+        self.capacity = capacity
+        self.records = OrderedDict()
+        self.pending = {}
+        self.selected = {}
+        self.invalid = set()
+        self.to_send = {}
+        self.active = set()
+        self.ready = {}
+        self.cancelled = set()
+
+    def finish(self, request, block_ids, *, active=False, memory=False):
+        s = self.scheduler
+        rid = request.request_id
+        self.selected.pop(rid, None)
+        state = s._req_status.get(rid)
+        boundary = min(request.num_computed_tokens, request.num_tokens - 1)
+        if not active:
+            # Save the latest arithmetic-grid state, replaying at most 63 tokens.
+            boundary = boundary // 64 * 64
+        if (
+            state is None
+            or not eligible(request)
+            or not active
+            and request.status
+            not in (
+                RequestStatus.FINISHED_STOPPED,
+                RequestStatus.FINISHED_LENGTH_CAPPED,
+            )
+            or request.num_in_flight_tokens
+            or boundary <= 0
+            or not (active or memory)
+            and boundary % self.connector._alignment == 0
+        ):
+            return False
+        if rid in self.pending or rid in self.ready:
+            raise RuntimeError("Snapshot already exists for request")
+        state.update_offload_keys()
+        witness_length = boundary + 1
+        digest = prefix_digest(
+            request.all_token_ids[:witness_length], request.cache_salt
+        )
+        pages = []
+        sources = {}
+        shared = []
+        # A unique namespace avoids confusing an incomplete/stale save with a hit.
+        nonce = s._generate_job_id()
+        for gi, group in enumerate(self.groups):
+            spec = group_spec(group)
+            end = (boundary + spec.block_size - 1) // spec.block_size
+            if isinstance(spec, CircularBufferSpec):
+                start, end = 0, 1
+            elif isinstance(spec, MambaSpec):
+                start = end - 1
+            else:
+                window = s.config.kv_group_configs[gi].sliding_window_size_in_chunks
+                start = max(0, end - window - 1) if window else 0
+            for index in range(start, end):
+                key = None
+                if gi < len(state.group_states) and not isinstance(spec, MambaSpec):
+                    data = state.group_states[gi]
+                    cfg = s.config.kv_group_configs[gi]
+                    stable_end = boundary // spec.block_size - int(cfg.is_eagle_group)
+                    if index < min(stable_end, len(data.offload_keys)):
+                        candidate = data.offload_keys[index]
+                        if (
+                            s.manager.lookup(candidate, state.req_context)
+                            == LookupResult.HIT
+                        ):
+                            key = candidate
+                            shared.append(key)
+                if key is None:
+                    # Recurrent source selection is completed on the worker before
+                    # its request slot is released. It can be beyond the boundary.
+                    source_index = index
+                    if isinstance(spec, MambaSpec):
+                        source_index = next(
+                            (
+                                i
+                                for i in range(len(block_ids[gi]) - 1, -1, -1)
+                                if block_ids[gi][i]
+                            ),
+                            -1,
+                        )
+                    if source_index < 0 or source_index >= len(block_ids[gi]):
+                        return False
+                    bid = block_ids[gi][source_index]
+                    if bid == 0:
+                        # An out-of-window page is unnecessary if already freed.
+                        if (
+                            not isinstance(spec, (MambaSpec, CircularBufferSpec))
+                            and window is not None
+                            and index < end - window
+                        ):
+                            continue
+                        return False
+                    key = make_offload_key(
+                        hashlib.sha256(
+                            digest
+                            + nonce.to_bytes(8, "little")
+                            + index.to_bytes(8, "little")
+                        ).digest(),
+                        gi,
+                    )
+                    sources[key] = bid
+                pages.append((gi, index, key))
+        if not sources:
+            return False
+        # Pin reused pages before allocating tails; the allocator must not evict
+        # dependencies while this completion is being assembled.
+        if shared:
+            s.manager.prepare_load(shared, state.req_context)
+        result = None
+        if memory:
+            locations = {key: (gi, index) for gi, index, key in pages if key in sources}
+            result = s.manager.prepare_memory_store(
+                list(sources), state.req_context, locations
+            )
+        if result is None:
+            # A completion can go directly to disk only when resident snapshot
+            # allocation cannot fit alongside the current request reservations.
+            result = s.manager.prepare_store(list(sources), state.req_context)
+        if result is None:
+            if shared:
+                s.manager.complete_load(shared, state.req_context)
+            return False
+        assert result.keys_to_store == list(sources)
+        record = CompletionRecord(witness_length, digest, boundary, pages)
+        sizes = [0] * len(self.groups)
+        indices = [0] * len(self.groups)
+        for gi, index, key in pages:
+            if key in sources:
+                if sizes[gi] == 0:
+                    indices[gi] = index
+                sizes[gi] += 1
+        gpu = GPULoadStoreSpec(list(sources.values()), sizes, indices)
+        jid = s._generate_job_id()
+        save = CompletionSave(record, block_ids, jid)
+        job = TransferJob(rid, gpu, result.store_spec)
+        s._jobs[jid] = TransferJobStatus(rid, s.config.num_workers, set(sources), True)
+        state.transfer_jobs.add(jid)
+        self.pending[rid] = (save, shared, state.req_context)
+        self.to_send[rid] = (save, job)
+        if active:
+            self.active.add(rid)
+        return True
+
+    def add_metadata(self, meta):
+        saves = {}
+        for rid, (save, job) in self.to_send.items():
+            meta.store_jobs[save.job_id] = job
+            saves[rid] = save
+        self.to_send.clear()
+        return CompletionMetadata(
+            meta.load_jobs, meta.store_jobs, meta.jobs_to_flush, saves
+        )
+
+    def update(self, output):
+        meta = output.kv_connector_worker_meta
+        self.invalid.update(getattr(meta, "invalid_completions", set()))
+        s = self.scheduler
+        finished = set()
+        for rid, (save, shared, context) in list(self.pending.items()):
+            # Also drain ordinary aligned stores before releasing their GPU source.
+            state = s._req_status.get(rid)
+            if state is not None and state.transfer_jobs:
+                continue
+            record = save.record
+            if rid in self.cancelled:
+                self.cancelled.discard(rid)
+            elif save.job_id not in self.invalid and all(
+                s.manager.lookup(key, context) == LookupResult.HIT
+                for _, _, key in record.pages
+            ):
+                if rid in self.active:
+                    self.ready[rid] = record
+                else:
+                    key = (record.witness_length, record.digest)
+                    retired = []
+                    if key in self.records:
+                        retired.append(self.records[key])
+                    self.records[key] = record
+                    self.records.move_to_end(key)
+                    while len(self.records) > self.capacity:
+                        retired.append(self.records.popitem(last=False)[1])
+                    if retired and hasattr(s.manager, "discard_idle_keys"):
+                        protected = {
+                            k
+                            for r in list(self.records.values())
+                            + list(self.selected.values())
+                            + [save.record for save, _, _ in self.pending.values()]
+                            for _, _, k in r.pages
+                        }
+                        s.manager.discard_idle_keys(
+                            {k for r in retired for _, _, k in r.pages} - protected
+                        )
+                logger.info(
+                    "Completion checkpoint saved request=%s boundary=%d pages=%d",
+                    rid,
+                    record.boundary,
+                    len(record.pages),
+                )
+            else:
+                if rid in self.active:
+                    raise RuntimeError("Pressure snapshot state unavailable")
+                logger.info(
+                    "Completion checkpoint skipped request=%s (state unavailable)", rid
+                )
+            if shared:
+                s.manager.complete_load(shared, context)
+            self.invalid.discard(save.job_id)
+            del self.pending[rid]
+            if rid not in self.active:
+                finished.add(rid)
+        if finished:
+            output.finished_sending = (output.finished_sending or set()) | finished
+
+    def cancel_active(self, request_id):
+        """Return whether cancellation must retain GPU sources until I/O drains."""
+        self.active.discard(request_id)
+        self.ready.pop(request_id, None)
+        if request_id in self.pending:
+            self.cancelled.add(request_id)
+        return request_id in self.pending
+
+    def lookup(self, request, local):
+        rid = request.request_id
+        self.selected.pop(rid, None)
+        if not eligible(request):
+            return None
+        s = self.scheduler
+        state = s._req_status[rid]
+        if state.transfer_jobs:
+            return None
+        pending_records = {
+            (save.record.witness_length, save.record.digest): save.record
+            for rid, (save, _, _) in self.pending.items()
+            if rid not in self.active and rid not in self.cancelled
+        }
+        lengths = {
+            r.witness_length
+            for r in list(self.records.values()) + list(pending_records.values())
+            if local < r.boundary < request.num_prompt_tokens
+            and r.boundary % 64 == 0
+        }
+        digests = prefix_digests(request.all_token_ids, request.cache_salt, lengths)
+        for length in sorted(lengths, reverse=True):
+            key = (length, digests[length])
+            record = self.records.get(key)
+            if record is None:
+                if key in pending_records:
+                    return None, False  # matching completion is still being captured
+                continue
+            hits = [s.manager.lookup(k, state.req_context) for _, _, k in record.pages]
+            if LookupResult.MISS in hits:
+                del self.records[key]
+                continue
+            if LookupResult.HIT_PENDING in hits:
+                return None, False
+            self.selected[rid] = record
+            self.records.move_to_end(key)
+            state.num_locally_computed_tokens = local
+            state.partial_tail_boundary = None
+            return record.boundary - local, True
+        return None
+
+    def allocate(self, request, blocks, external):
+        record = self.selected.pop(request.request_id, None)
+        if record is None or external == 0:
+            return False
+        s = self.scheduler
+        state = s._req_status[request.request_id]
+        assert state.num_locally_computed_tokens + external == record.boundary
+        keys, ids = [], []
+        sizes = [0] * len(self.groups)
+        indices = [0] * len(self.groups)
+        for gi, index, key in record.pages:
+            block = blocks.blocks[gi][index]
+            if block.is_null:
+                continue
+            # Never overwrite a shared local prefix page. Partial tails, rings,
+            # and recurrent state are allocated privately by the cache manager.
+            if block.block_hash is not None:
+                continue
+            keys.append(key)
+            ids.append(block.block_id)
+            if sizes[gi] == 0:
+                indices[gi] = index
+            sizes[gi] += 1
+        src = s.manager.prepare_load(keys, state.req_context)
+        jid = s._generate_job_id()
+        s._current_batch_load_jobs[jid] = TransferJob(
+            request.request_id, src, GPULoadStoreSpec(ids, sizes, indices)
+        )
+        assert not state.transfer_jobs
+        state.transfer_jobs.add(jid)
+        s._jobs[jid] = TransferJobStatus(
+            request.request_id, s.config.num_workers, set(keys), False
+        )
+        for group in state.group_states:
+            group.block_ids.clear()
+        logger.info(
+            "Completion checkpoint restore request=%s boundary=%d replay=%d",
+            request.request_id,
+            record.boundary,
+            request.num_prompt_tokens - record.boundary,
+        )
+        return True
+
+
+def _capture_current_completion_states(connector, runner, metadata):
+    """Copy accepted recurrent state before request-slot reuse; never mutate KV.
+
+    Attention and QSA ring pages go through the ordinary raw-page DMA. GDN
+    temporal state selects a speculative block; convolution state selects a
+    temporal slice. Normalize those pieces in the disk staging page so a new
+    worker request can start with the ordinary neutral acceptance count of one.
+    """
+    import torch
+
+    from vllm.model_executor.layers.mamba.mamba_utils import (
+        get_conv_copy_spec,
+        get_temporal_copy_spec,
+        is_conv_state_dim_first,
+    )
+
+    if not isinstance(metadata, CompletionMetadata) or not metadata.completion_saves:
+        return
+    worker = connector.connector_worker.worker
+    state = runner.model_state
+    context = runner.vllm_config.compilation_config.static_forward_context
+    groups = connector._completion_groups
+    funcs = runner.model.get_mamba_state_copy_funcs(
+        {
+            group_spec(g).mamba_type
+            for g in groups
+            if isinstance(group_spec(g), MambaSpec)
+        }
+    )
+    for rid, save in metadata.completion_saves.items():
+        ri = runner.req_states.req_id_to_index.get(rid)
+        if ri is None:
+            connector._invalid_completions.add(save.job_id)
+            continue
+        # Reading the GPU scalars synchronizes the previous forward/sampling
+        # stream. CPU scheduler counts alone cannot select speculative state.
+        computed, accepted, column = (
+            torch.stack(
+                (
+                    runner.req_states.num_computed_tokens.gpu[ri],
+                    state.num_accepted_tokens_gpu[ri],
+                    state._mamba_state_idx_gpu[ri],
+                )
+            )
+            .cpu()
+            .tolist()
+        )
+        bias = accepted - 1 - (computed - save.record.boundary)
+        if (
+            computed < save.record.boundary
+            or not 0 <= bias <= runner.num_speculative_steps
+        ):
+            # A stop may truncate a speculative step whose in-place aligned
+            # normalization has already discarded the earlier state. Keep the
+            # aligned checkpoint instead of advertising a false exact hit.
+            connector._invalid_completions.add(save.job_id)
+            continue
+        replacements = {}
+        valid = True
+        for gi, group in enumerate(groups):
+            spec = group_spec(group)
+            if not isinstance(spec, MambaSpec):
+                continue
+            ids = save.block_ids[gi]
+            if column < 0 or column >= len(ids) or ids[column] == 0:
+                valid = False
+                break
+            pieces = []
+            for layer in group.layer_names:
+                per_layer = getattr(group.kv_cache_spec, "kv_cache_specs", {}).get(
+                    layer, spec
+                )
+                caches = context[layer].kv_cache
+                copy_funcs = funcs[per_layer.mamba_type]
+                if len(caches) != len(copy_funcs):
+                    raise RuntimeError("Unrepresented recurrent checkpoint state")
+                for tensor, copy_func in zip(caches, copy_funcs):
+                    if copy_func is get_conv_copy_spec:
+                        data = tensor[ids[column]].cpu().contiguous()
+                        normalized = torch.zeros_like(data)
+                        if is_conv_state_dim_first():
+                            normalized[:, : data.shape[1] - bias].copy_(data[:, bias:])
+                        else:
+                            normalized[: data.shape[0] - bias].copy_(data[bias:])
+                    elif copy_func is get_temporal_copy_spec:
+                        if column + bias >= len(ids) or ids[column + bias] == 0:
+                            valid = False
+                            break
+                        normalized = tensor[ids[column + bias]].cpu().contiguous()
+                    else:
+                        raise RuntimeError("Unsupported recurrent checkpoint copy")
+                    if not tensor[0].is_contiguous():
+                        raise RuntimeError("Noncontiguous recurrent checkpoint layout")
+                    offset = worker.state_offset(tensor, gi)
+                    pieces.append(
+                        (offset, normalized.view(torch.uint8).numpy().tobytes())
+                    )
+                if not valid:
+                    break
+            if not valid:
+                break
+            replacements[gi] = pieces
+        if valid:
+            worker.completion_replacements[save.job_id] = replacements
+        else:
+            connector._invalid_completions.add(save.job_id)
+
+
+def capture_completion_states(connector, runner, metadata):
+    """Retain only recurrent/ring state at grid checkpoints, not attention pages.
+
+    These private CPU snapshots are bounded by live request slots. Attention
+    prefix pages are immutable and copied only when the request finishes.
+    """
+    import torch
+    if not isinstance(metadata, CompletionMetadata):
+        return
+    worker = connector.connector_worker.worker
+    shadows = getattr(worker, "aligned_completion_shadows", None)
+    if shadows is None:
+        shadows = worker.aligned_completion_shadows = {}
+    groups = connector._completion_groups
+    for rid, boundary in metadata.checkpoint_requests:
+        ri = runner.req_states.req_id_to_index.get(rid)
+        if ri is None or shadows.get(rid, (None,))[0] == boundary:
+            continue
+        block_ids = []
+        for gi, group in enumerate(groups):
+            source_group = connector._completion_order[gi]
+            if isinstance(group_spec(group), (MambaSpec, CircularBufferSpec)):
+                # Recurrent state and ring tables use unexpanded block IDs.
+                if runner.block_tables.blocks_per_kv_block[source_group] != 1:
+                    raise RuntimeError("Unsupported expanded checkpoint state table")
+                count = int(runner.block_tables.num_blocks.np[source_group, ri])
+                ids = runner.block_tables.block_tables[source_group].gpu[ri, :count].cpu().tolist()
+            else:
+                ids = []
+            block_ids.append(ids)
+        # Private scratch ID never enters the transfer-job namespace.
+        jid = -1
+        save = CompletionSave(CompletionRecord(boundary + 1, b"", boundary, []), tuple(block_ids), jid)
+        scratch = CompletionMetadata(load_jobs={}, store_jobs={}, completion_saves={rid: save})
+        _capture_current_completion_states(connector, runner, scratch)
+        if jid in connector._invalid_completions:
+            connector._invalid_completions.discard(jid)
+            worker.completion_replacements.pop(jid, None)
+            continue
+        pieces = worker.completion_replacements.pop(jid)
+        for gi, group in enumerate(groups):
+            if not isinstance(group_spec(group), CircularBufferSpec):
+                continue
+            bid = block_ids[gi][0]
+            spans = []
+            for ref in worker.kv_caches.group_data_refs[gi]:
+                cached = worker.kv_caches.tensors[ref.tensor_idx]
+                raw = cached.tensor.view(torch.uint8).reshape(-1, cached.page_size_bytes)
+                data = raw[bid, :ref.page_size_bytes].cpu().contiguous().numpy().tobytes()
+                spans.append((worker.tensor_offsets[ref.tensor_idx], data))
+            pieces[gi] = spans
+        shadows[rid] = (boundary, pieces)
+
+    remaining = {}
+    for rid, save in metadata.completion_saves.items():
+        shadow = shadows.get(rid)
+        if shadow is not None and shadow[0] == save.record.boundary:
+            worker.completion_replacements[save.job_id] = shadow[1]
+            logger.info("Completion checkpoint using aligned shadow request=%s boundary=%d", rid, save.record.boundary)
+        else:
+            # Exact aligned finishes and active pressure saves retain the
+            # existing accepted-state validation. Missing older state is
+            # rejected, never advertised as a cache hit.
+            remaining[rid] = save
+    if remaining:
+        _capture_current_completion_states(connector, runner, CompletionMetadata(load_jobs={}, store_jobs={}, completion_saves=remaining))
+    for rid in metadata.checkpoint_finished:
+        shadows.pop(rid, None)

@@ -1,0 +1,12 @@
+--- /home/jon/dual-spark-inference-kv-paging/experiments/targeted-determinism-20260913/completion.fixed.py
++++ /home/jon/dual-spark-inference-kv-paging/experiments/aggregate-throughput-20260914/completion.no_waste.py
+@@ -137,6 +137,9 @@
+             )
+             or request.num_in_flight_tokens
+             or boundary <= 0
++            # Lookup cannot reuse an unaligned completion. Do not retain or
++            # spill its pages. Active pressure snapshots use a separate path.
++            or (not active and boundary % 64 != 0)
+             or not (active or memory)
+             and boundary % self.connector._alignment == 0
+         ):

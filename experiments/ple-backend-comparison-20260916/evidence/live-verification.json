@@ -1,0 +1,57 @@
+[
+  {
+    "rank": 0,
+    "container_pid": 413259,
+    "running": true,
+    "oom_killed": false,
+    "restarts": 0,
+    "processes": [
+      "413259              vllm",
+      "413459              python3",
+      "413460              VLLM::EngineCor",
+      "413557              VLLM::Worker_TP",
+      "413813              python3",
+      "414320              torch_shm_manag"
+    ],
+    "threads": 375,
+    "restricted_affinity": [],
+    "parameters": {
+      "--max-num-seqs": "32",
+      "--max-num-batched-tokens": "8192",
+      "--long-prefill-token-threshold": "1024",
+      "--tensor-parallel-size": "2"
+    },
+    "controls": {
+      "ple_backend_control": 60129574912,
+      "ple_read_control": 0
+    },
+    "errors": []
+  },
+  {
+    "rank": 1,
+    "container_pid": 3851319,
+    "running": true,
+    "oom_killed": false,
+    "restarts": 0,
+    "processes": [
+      "3851319             vllm",
+      "3851530             python3",
+      "3851531             VLLM::Worker_TP",
+      "3852207             python3",
+      "3855861             torch_shm_manag"
+    ],
+    "threads": 308,
+    "restricted_affinity": [],
+    "parameters": {
+      "--max-num-seqs": "32",
+      "--max-num-batched-tokens": "8192",
+      "--long-prefill-token-threshold": "1024",
+      "--tensor-parallel-size": "2"
+    },
+    "controls": {
+      "ple_backend_control": 60129574912,
+      "ple_read_control": 0
+    },
+    "errors": []
+  }
+]

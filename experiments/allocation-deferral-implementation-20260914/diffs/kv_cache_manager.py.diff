@@ -1,0 +1,31 @@
+--- /home/jon/dual-spark-inference-kv-paging/experiments/allocation-deferral-20260914/core__kv_cache_manager.py
++++ /home/jon/dual-spark-inference-kv-paging/experiments/allocation-deferral-implementation-20260914/kv_cache_manager.py
+@@ -484,6 +484,10 @@
+             )
+             required_blocks = num_blocks_to_allocate + watermark_blocks
+             if required_blocks > self.block_pool.get_num_free_blocks():
++                gate = getattr(self.block_pool, 'native_allocation_gate', None)
++                if gate is not None and required_blocks <= self.block_pool.get_num_free_blocks() + len(gate.__self__.source_blocks):
++                    from vllm.v1.kv_offload.gb10_allocation_deferral import AllocationDeferred
++                    raise AllocationDeferred()
+                 return None
+ 
+         num_tokens_main_model = total_computed_tokens + num_new_tokens
+@@ -521,6 +525,17 @@
+         # additional watermark of headroom for waiting/preempted admissions.
+         available_blocks = self.block_pool.get_num_free_blocks() - reserved_blocks
+         required_blocks = num_blocks_to_allocate + watermark_blocks
++        gate = getattr(self.block_pool, 'native_allocation_gate', None)
++        if gate is not None:
++            protected = set()
++            for manager, group in zip(self.coordinator.single_type_managers, new_computed_block_list):
++                skipped = manager.get_num_skipped_tokens(num_local_computed_tokens + num_external_computed_tokens) // manager.block_size
++                protected.update(b.block_id for b in group[skipped:] if not b.is_null)
++            # Preserve the genuine capacity failure path when there is no copy
++            # in flight to restore withheld capacity.
++            owner = gate.__self__
++            if required_blocks <= available_blocks + len(owner.source_blocks):
++                gate(required_blocks + reserved_blocks, protected, request.request_id)
+         if required_blocks > available_blocks:
+             # Cannot allocate new blocks
+             return None

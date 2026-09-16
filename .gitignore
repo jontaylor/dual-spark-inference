@@ -19,3 +19,23 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+
+# Local deployment backups and generated experiment captures. Reviewed compact
+# evidence/configuration is explicitly tracked; experiment source remains public.
+deploy_config.json.*
+experiments/**/*.json
+experiments/**/*.jsonl
+experiments/**/*.txt
+experiments/**/*.csv
+experiments/**/*.pt
+experiments/**/*.gz
+experiments/**/*.sse
+experiments/**/*.so
+experiments/**/*.raw
+experiments/**/*.err
+experiments/**/*.png
+experiments/**/*.svg
+experiments/**/pid
+experiments/**/pid.*
+experiments/**/lock
+experiments/**/*boundary-release

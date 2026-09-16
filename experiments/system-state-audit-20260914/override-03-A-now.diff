@@ -1,0 +1,32 @@
+--- /home/jon/dual-spark-inference-kv-paging/experiments/targeted-determinism-20260913/targeted_kernels.dense.py
++++ /home/jon/dual-spark-inference-kv-paging/experiments/performance-until-10am-20260914/targeted_kernels.fine.py
+@@ -4,7 +4,7 @@
+ from vllm.triton_utils import triton
+ from vllm.utils.platform_utils import num_compute_units
+ 
+-# No M-indexed tuning: correctness baseline shared by prefill and decode.
++# Prefill baseline; decode tiles gated by cross-tile equality evidence.
+ GEMM_CONFIG = dict(BLOCK_SIZE_M=128, BLOCK_SIZE_N=128, BLOCK_SIZE_K=64,
+                    GROUP_SIZE_M=8, num_stages=3, num_warps=8)
+ 
+@@ -16,13 +16,18 @@
+     n = b.shape[1]
+     c = torch.empty((m, n), device=a.device, dtype=a.dtype)
+     sms = num_compute_units(a.device.index)
+-    grid = (min(sms, triton.cdiv(m, 128) * triton.cdiv(n, 128)),)
++    # Cross-tile equality gated by complete fine-GEMM probe; K64 throughout.
++    plans = {(336, 10240): (32, 32, 4, 3), (48, 2560): (16, 16, 4, 3)}
++    bm, bn, warps, stages = plans.get((n, k), (128, 128, 8, 3)) if m <= 128 else (128, 128, 8, 3)
++    config = dict(BLOCK_SIZE_M=bm, BLOCK_SIZE_N=bn, BLOCK_SIZE_K=64,
++                  GROUP_SIZE_M=8, num_stages=stages, num_warps=warps)
++    grid = (min(sms, triton.cdiv(m, bm) * triton.cdiv(n, bn)),)
+     matmul_kernel_persistent[grid](
+         a, b, c, bias, m, n, k, a.stride(0), a.stride(1),
+         b.stride(0), b.stride(1), c.stride(0), c.stride(1), NUM_SMS=sms,
+         A_LARGE=a.numel() > 2**31, B_LARGE=b.numel() > 2**31,
+         C_LARGE=c.numel() > 2**31, HAS_BIAS=bias is not None,
+-        **GEMM_CONFIG)
++        **config)
+     return c
+ 
+ 

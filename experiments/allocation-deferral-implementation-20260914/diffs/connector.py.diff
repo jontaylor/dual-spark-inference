@@ -1,0 +1,54 @@
+--- /home/jon/dual-spark-inference-kv-paging/experiments/async-eviction-20260914/connector.async.py
++++ /home/jon/dual-spark-inference-kv-paging/experiments/allocation-deferral-implementation-20260914/connector.py
+@@ -464,7 +464,8 @@
+                 request, tuple(block_ids[i] for i in self._completion_order)
+             )
+         if self._completion is not None:
+-            self._completion.restored_pages.pop(request.request_id, None)
++            if request.request_id not in self._completion.deferred_allocations:
++                self._completion.restored_pages.pop(request.request_id, None)
+         old_delayed, params = super().request_finished_all_groups(request, block_ids)
+         return delayed or old_delayed, params
+ 
+@@ -492,7 +493,24 @@
+         if self._completion is not None:
+             self._completion.update(output)
+ 
++    def retry_completion_allocations(self):
++        if self._completion is not None:
++            self._completion.retry_allocations()
++
+     def prepare_completion(self, runner, metadata):
++        reserved = getattr(metadata, 'reserved_eviction_jobs', None)
++        if reserved:
++            worker = self.connector_worker.worker
++            worker.source_fence_jobs.update(reserved)
++            try:
++                for jid in reserved:
++                    job = metadata.store_jobs.pop(jid)
++                    assert worker.submit_store(jid, job.src_spec, job.dst_spec)
++            finally:
++                worker.source_fence_jobs.difference_update(reserved)
++            reserved.clear()
++            # Physical GPU sources remain reserved by the scheduler. No wait.
++
+         if getattr(metadata, "native_eviction_jobs", None):
+             # Drain before finish/free/add/update_requests, which can zero or
+             # COW into the physical blocks just allocated by the scheduler.
+@@ -526,6 +544,7 @@
+         if meta is not None:
+             result.completed_jobs = meta.completed_jobs
+             result.transfer_stats = meta.transfer_stats
++            result.source_preserved = meta.source_preserved
+         self._invalid_completions = set()
+         return result
+ 
+@@ -535,7 +554,7 @@
+         if self._pressure_saves or self._pinned_checkpoints or self._spill_jobs:
+             return False
+         if self._completion is not None:
+-            if self._completion.pending or self._completion.selected:
++            if self._completion.pending or self._completion.selected or self._completion.deferred_allocations:
+                 return False
+             self._completion.records.clear()
+             self._completion.restored_pages.clear()

@@ -1,0 +1,101 @@
+--- /home/jon/dual-spark-inference-kv-paging/experiments/gpu-native-completion-20260914/completion.gpu.v2.py
++++ /home/jon/dual-spark-inference-kv-paging/experiments/allocation-deferral-implementation-20260914/completion.py
+@@ -3,6 +3,8 @@
+ """Completion-only Qwen4 snapshots using the aligned connector's disk budget."""
+ 
+ import hashlib
++import time
++from vllm.v1.kv_offload.gb10_allocation_deferral import AllocationDeferred
+ from array import array
+ from collections import OrderedDict
+ from dataclasses import dataclass, field
+@@ -89,6 +91,7 @@
+     checkpoint_requests: list[tuple[str, int]] = field(default_factory=list)
+     checkpoint_finished: set[str] = field(default_factory=set)
+     native_eviction_jobs: set[int] = field(default_factory=set)
++    reserved_eviction_jobs: set[int] = field(default_factory=set)
+ 
+ 
+ @dataclass
+@@ -100,6 +103,7 @@
+         assert isinstance(base, OffloadingWorkerMetadata)
+         return CompletionWorkerMetadata(
+             completed_jobs=base.completed_jobs,
++            source_preserved=base.source_preserved,
+             transfer_stats=base.transfer_stats,
+             invalid_completions=self.invalid_completions
+             | getattr(other, "invalid_completions", set()),
+@@ -116,6 +120,8 @@
+         self.capacity = capacity
+         self.records = OrderedDict()
+         self.pending = {}
++        self.deferred_allocations = {}
++        self.skipped_allocations = set()
+         self.selected = {}
+         self.invalid = set()
+         self.to_send = {}
+@@ -136,7 +142,7 @@
+         rid = request.request_id
+         self.release_lookup_pin(rid)
+         self.selected.pop(rid, None)
+-        inherited = self.restored_pages.get(rid, {}) if active else self.restored_pages.pop(rid, {})
++        inherited = self.restored_pages.get(rid, {})
+         state = s._req_status.get(rid)
+         boundary = min(request.num_computed_tokens, request.num_tokens - 1)
+         # Capture the exact accepted completion/suspension boundary on demand.
+@@ -261,9 +267,17 @@
+                 key: sources[key] for gi, index, key in pages
+                 if key in sources and not isinstance(group_spec(self.groups[gi]), MambaSpec)
+             } if getattr(s.manager, 'native_mode', False) else None
+-            result = s.manager.prepare_memory_store(
+-                list(sources), state.req_context, locations, borrowed=borrowed
+-            )
++            try:
++                result = s.manager.prepare_memory_store(
++                    list(sources), state.req_context, locations, borrowed=borrowed
++                )
++            except AllocationDeferred:
++                if shared:
++                    s.manager.complete_load(shared, state.req_context)
++                started = self.deferred_allocations.get(rid, (None, None, None, None, time.monotonic()))[-1]
++                self.deferred_allocations[rid] = (request, block_ids, active, memory, started)
++                state.allocation_pending = True
++                return True
+         if result is None:
+             # A completion can go directly to disk only when resident snapshot
+             # allocation cannot fit alongside the current request reservations.
+@@ -296,6 +310,24 @@
+             self.active.add(rid)
+         return True
+ 
++    def retry_allocations(self):
++        for rid, (request, blocks, active, memory, started) in list(self.deferred_allocations.items()):
++            if time.monotonic() - started > 300:
++                raise RuntimeError('Completion allocation preservation timed out')
++            state = self.scheduler._req_status[rid]
++            state.allocation_pending = False
++            if self.finish(request, blocks, active=active, memory=memory):
++                if rid in self.pending:
++                    del self.deferred_allocations[rid]
++                    if not active:
++                        self.restored_pages.pop(rid, None)
++            else:
++                del self.deferred_allocations[rid]
++                self.restored_pages.pop(rid, None)
++                self.skipped_allocations.add(rid)
++                if state.finished_signaled and not state.transfer_jobs:
++                    del self.scheduler._req_status[rid]
++
+     def add_metadata(self, meta):
+         # Lookups which did not obtain an allocation this pass must not hold
+         # GPU capacity while waiting for admission or a later scheduling pass.
+@@ -314,7 +346,8 @@
+         meta = output.kv_connector_worker_meta
+         self.invalid.update(getattr(meta, "invalid_completions", set()))
+         s = self.scheduler
+-        finished = set()
++        finished = self.skipped_allocations
++        self.skipped_allocations = set()
+         for rid, (save, shared, context) in list(self.pending.items()):
+             # Also drain ordinary aligned stores before releasing their GPU source.
+             state = s._req_status.get(rid)

@@ -1,0 +1,219 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Write native cached pages only when their physical blocks are reused.
+
+The allocator does not pin, clone, or reserve cache pages. A reuse fence sends
+the old contents to storage before worker request updates can overwrite them.
+Unaligned/native partial entries remain native-only; the existing aligned
+connector restores complete hybrid boundaries.
+"""
+import time
+from dataclasses import dataclass, field
+
+from vllm.distributed.kv_transfer.kv_connector.v1.offloading.common import TransferJob
+from vllm.logger import init_logger
+from vllm.v1.core.kv_cache_utils import get_block_hash, get_group_id
+from vllm.v1.kv_offload.base import GPULoadStoreSpec, LookupResult, ReqContext, make_offload_key
+
+logger = init_logger(__name__)
+
+
+@dataclass
+class EvictionJob:
+    keys: set
+    pending: int
+    started: float
+    resident_slot: int | None = None
+    source_block: int | None = None
+    source_ranks: set = field(default_factory=set)
+    source_released: bool = False
+
+
+class NativePressureCache:
+    def __init__(self, connector, pool):
+        self.connector = connector
+        self.scheduler = connector.connector_scheduler
+        assert self.scheduler.config.blocks_per_chunk == 1
+        self.context = ReqContext("gb10-native-eviction")
+        self.jobs = {}
+        self.to_send = {}
+        # A block allocated twice before worker execution no longer contains
+        # the data represented by its newly scheduled hash. Never save that hash.
+        self.allocated_this_step = set()
+        self.pool = pool
+        pool.before_cached_block_reuse = self.before_reuse
+        pool.native_allocation_gate = self.ensure_available
+        self.source_blocks = {}  # physical block -> outstanding source job IDs
+        self.max_source_blocks = 64
+        self.deferred_requests = {}
+
+    def ensure_available(self, required, protected=(), request_id=None):
+        from vllm.v1.kv_offload.gb10_allocation_deferral import AllocationDeferred
+        manager = self.scheduler.manager
+        if not manager.native_mode or required <= 0:
+            return
+        protected = set(protected)
+        # Common case: queue head already supplies the complete allocation.
+        # Avoid scanning/reordering the whole cache on ordinary decode steps.
+        node = self.pool.free_block_queue.fake_free_list_head.next_free_block
+        ready = 0
+        while node is not self.pool.free_block_queue.fake_free_list_tail and ready < required:
+            if node.block_id in manager._resident_by_block and node.block_id not in protected:
+                break
+            ready += 1
+            node = node.next_free_block
+        if ready >= required:
+            self.deferred_requests.pop(request_id, None)
+            return
+        free = self.pool.free_block_queue.get_all_free_blocks()
+        # Demand includes free prefix-hit pages that will be adopted, not just
+        # new destinations. Never preserve those pages for this allocation.
+        usable = [b for b in free if b.block_id in protected or
+                  b.block_id not in manager._resident_by_block]
+        if len(usable) >= required:
+            if request_id in self.deferred_requests:
+                del self.deferred_requests[request_id]
+            # The committed allocator still uses the native queue. Put eligible
+            # pages first, preserving their relative eviction order.
+            destinations = [b for b in usable if b.block_id not in protected][:required]
+            for b in destinations:
+                self.pool.free_block_queue.remove(b)
+            self.pool.free_block_queue.prepend_n(destinations)
+            return
+        missing = required - len(usable)
+        # Account for copies already in flight; do not repeatedly over-reserve.
+        target = max(0, missing - len(self.source_blocks))
+        room = max(0, self.max_source_blocks - len(self.source_blocks))
+        for block in free:
+            if target <= 0 or room <= 0:
+                break
+            if block.block_id in protected or block.block_id not in manager._resident_by_block:
+                continue
+            self.reserve_source(block)
+            target -= 1
+            room -= 1
+        if not self.source_blocks:
+            raise RuntimeError('Deferral shortage has no preservation progress path')
+        if request_id is not None and request_id not in self.deferred_requests:
+            self.deferred_requests[request_id] = time.monotonic()
+            logger.info('GB10_ALLOCATION_DEFER request=%s required=%d eligible=%d sources=%d',
+                        request_id, required, len(usable), len(self.source_blocks))
+        raise AllocationDeferred()
+
+    def reserve_source(self, block):
+        from vllm.v1.kv_offload.rank_local_disk import DiskSlots
+        assert block.ref_cnt == 0 and block.block_id not in self.source_blocks
+        manager = self.scheduler.manager
+        pages = manager.begin_native_reuse(block)
+        assert pages
+        # Remove mutable/native prefix aliases before exposing another schedule.
+        self.pool._maybe_evict_cached_block(block)
+        self.pool.touch([block])
+        jobs = self.source_blocks[block.block_id] = set()
+        for slot, page in pages:
+            sizes = [0] * len(self.connector._completion_groups)
+            indices = [0] * len(sizes)
+            sizes[page.group], indices[page.group] = 1, page.index
+            jid = self.scheduler._generate_job_id()
+            jobs.add(jid)
+            self.jobs[jid] = EvictionJob(
+                {page.key}, self.scheduler.config.num_workers, time.monotonic(),
+                slot, block.block_id)
+            self.to_send[jid] = TransferJob(
+                self.context.req_id,
+                GPULoadStoreSpec([block.block_id], sizes, indices), DiskSlots([slot]))
+            logger.info('GB10_RESERVED_EVICTION job=%d block=%d slot=%d',
+                        jid, block.block_id, slot)
+
+    def before_reuse(self, block):
+        already_allocated = block.block_id in self.allocated_this_step
+        self.allocated_this_step.add(block.block_id)
+        manager = self.scheduler.manager
+        if getattr(manager, 'native_mode', False):
+            # Every caller must pass preflight. Failing closed detects missed
+            # allocation paths before a worker can overwrite cached state.
+            assert block.block_id not in manager._resident_by_block, \
+                'GPU-only checkpoint selected without allocation preflight'
+            return
+        if already_allocated or block.block_hash is None:
+            return
+        assert block.ref_cnt == 0 and not block.is_null
+        group = self.connector._index.get(get_group_id(block.block_hash))
+        if group is None:
+            return  # Compression rings have no aligned external representation.
+        cfg = self.scheduler.config.kv_group_configs[group]
+        boundary = block.block_hash_num_tokens
+        if not boundary or boundary % cfg.tokens_per_chunk:
+            return  # Never advertise partial bytes under a full-chunk key.
+        key = make_offload_key(get_block_hash(block.block_hash), cfg.group_idx)
+        manager = self.scheduler.manager
+        if manager.lookup(key, self.context) != LookupResult.MISS:
+            return
+        result = manager.prepare_store([key], self.context)
+        if result is None:
+            # A bounded backing cache may be full of pinned parked requests.
+            # Native eviction still proceeds; no false external hit is created.
+            logger.info("GB10_NATIVE_EVICTION backing_full block=%d", block.block_id)
+            return
+        if not result.keys_to_store:
+            return
+        assert result.keys_to_store == [key]
+        sizes = [0] * len(self.connector._completion_groups)
+        indices = [0] * len(sizes)
+        sizes[group] = 1
+        indices[group] = boundary // cfg.tokens_per_chunk - 1
+        jid = self.scheduler._generate_job_id()
+        self.jobs[jid] = EvictionJob({key}, self.scheduler.config.num_workers, time.monotonic())
+        self.to_send[jid] = TransferJob(
+            self.context.req_id,
+            GPULoadStoreSpec([block.block_id], sizes, indices),
+            result.store_spec,
+        )
+        logger.info("GB10_NATIVE_EVICTION save job=%d block=%d group=%d boundary=%d",
+                    jid, block.block_id, group, boundary)
+
+    def add_metadata(self, meta):
+        if self.to_send:
+            meta.store_jobs.update(self.to_send)
+            if self.scheduler.manager.native_mode:
+                meta.reserved_eviction_jobs = set(self.to_send)
+            else:
+                meta.jobs_to_flush = (meta.jobs_to_flush or set()) | set(self.to_send)
+                meta.native_eviction_jobs = set(self.to_send)
+            self.to_send.clear()
+        self.allocated_this_step.clear()
+        if any(time.monotonic() - job.started > 300 for job in self.jobs.values()):
+            raise RuntimeError("Native prefix eviction save timed out")
+
+    def consume_completions(self, meta):
+        completed = dict(meta.completed_jobs)
+        for jid, ranks in getattr(meta, 'source_preserved', {}).items():
+            job = self.jobs.get(jid)
+            if job is None or job.source_released or job.source_block is None:
+                continue  # repeated ACK cannot release another allocation
+            assert job.source_block is not None
+            assert set(ranks) <= set(range(self.scheduler.config.num_workers))
+            job.source_ranks.update(ranks)
+            if len(job.source_ranks) != self.scheduler.config.num_workers:
+                continue
+            self.scheduler.manager.detach_preserved_source(job.resident_slot)
+            job.source_released = True
+            jobs = self.source_blocks[job.source_block]
+            jobs.remove(jid)
+            if not jobs:
+                del self.source_blocks[job.source_block]
+                block = self.pool.blocks[job.source_block]
+                assert block.ref_cnt == 1
+                self.pool.free_blocks([block])
+                logger.info('GB10_SOURCE_CAPACITY_READY block=%d job=%d', block.block_id, jid)
+        for jid, job in list(self.jobs.items()):
+            job.pending -= completed.pop(jid, 0)
+            assert job.pending >= 0
+            if not job.pending:
+                if job.source_block is not None:
+                    assert job.source_released, 'Persistence ACK preceded source ACK'
+                if job.resident_slot is not None:
+                    self.scheduler.manager.finish_spill(job.resident_slot)
+                else:
+                    self.scheduler.manager.complete_store(job.keys, self.context)
+                del self.jobs[jid]
+        return completed

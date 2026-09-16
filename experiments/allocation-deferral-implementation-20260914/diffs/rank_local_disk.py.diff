@@ -1,0 +1,94 @@
+--- /home/jon/dual-spark-inference-kv-paging/experiments/async-eviction-20260914/rank_local_disk.async.py
++++ /home/jon/dual-spark-inference-kv-paging/experiments/allocation-deferral-implementation-20260914/rank_local_disk.py
+@@ -85,6 +85,7 @@
+         self.memory_ledger: ParkingPolicy | None = None
+         self.native_mode = False
+         self._resident_by_block = {}
++        self._detached_sources = {}
+ 
+     def configure_memory(self, pool, ledger):
+         self.memory_pool, self.memory_ledger = pool, ledger
+@@ -155,7 +156,12 @@
+         if pool is None or ledger is None:
+             raise RuntimeError('Native completion pool is not configured')
+         needed = sum(k not in borrowed for k in keys)
+-        if needed > pool.get_num_free_blocks() or needed > ledger.free:
++        if needed > ledger.free:
++            return None
++        gate = getattr(pool, 'native_allocation_gate', None)
++        if gate is not None and needed <= pool.get_num_free_blocks() + len(gate.__self__.source_blocks):
++            gate(needed, request_id=context.req_id)
++        if needed > pool.get_num_free_blocks():
+             return None
+         # Borrowed pages are still owned by the completing request. Pin them
+         # before slot eviction/allocation can trigger other ownership changes.
+@@ -243,13 +249,26 @@
+                 break
+         return selected
+ 
++    def detach_preserved_source(self, slot):
++        assert slot in self.spilling
++        page = self.resident.pop(slot)
++        self._detached_sources[slot] = (page.key, page.context)
++        assert page.native and not page.owned and not page.reserved and not page.load_pins
++        slots = self._resident_by_block[page.block.block_id]
++        slots.remove(slot)
++        if not slots:
++            del self._resident_by_block[page.block.block_id]
++            self.memory_pool.native_completion_block_ids.discard(page.block.block_id)
++        # Physical reference belongs to NativePressureCache, not this slot.
++
+     def finish_spill(self, slot):
+-        page = self.resident[slot]
+-        status = self._policy.get(page.key)
++        page = self.resident.get(slot)
++        key, context = (page.key, page.context) if page is not None else self._detached_sources.pop(slot)
++        status = self._policy.get(key)
+         assert status is not None and status.ref_cnt == 1
+         self.spilling.remove(slot)
+         self._release_resident(slot)
+-        super().complete_load([page.key], page.context)
++        super().complete_load([key], context)
+ 
+     def discard_idle_keys(self, keys):
+         for key in keys:
+@@ -431,6 +450,7 @@
+         self.jobs = {}
+         self.closed = False
+         self.source_preserved = {}
++        self.source_ack_ready = set()
+         self.source_fence_jobs = set()
+         self.eviction_pipeline = None
+ 
+@@ -554,6 +574,18 @@
+         preserved, completed = self.eviction_pipeline.submit(stage, persist)
+         self.source_preserved[job_id] = preserved
+         self.jobs[job_id] = completed
++
++    def poll_source_preserved(self):
++        # Public completions can be consumed in this same step. Save the ACK
++        # before get_finished deletes its future.
++        for jid, future in list(self.source_preserved.items()):
++            if future.done():
++                future.result()  # copy errors fail closed
++                self.source_ack_ready.add(jid)
++                del self.source_preserved[jid]
++        result = self.source_ack_ready
++        self.source_ack_ready = set()
++        return result
+ 
+     def wait_source_preserved(self, job_ids):
+         for job_id in job_ids:
+@@ -712,6 +744,12 @@
+         results = []
+         for job_id, future in list(self.jobs.items()):
+             if future.done():
++                source = self.source_preserved.get(job_id)
++                if source is not None:
++                    if not source.done():
++                        continue
++                    source.result()
++                    self.source_ack_ready.add(job_id)
+                 # Raise on any missing/short file or copy failure. Never ACK a
+                 # partial transfer as successful; the engine must fail closed.
+                 results.append(future.result())

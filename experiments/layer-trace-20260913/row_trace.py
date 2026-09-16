@@ -1,0 +1,160 @@
+"""Bounded, opt-in snapshots outside CUDA graph capture. No tensor mutations."""
+import dataclasses
+import json
+import os
+from pathlib import Path
+
+import numpy as np
+import torch
+
+CONTROL = Path('/tmp/vllm-row-trace-control.json')
+OUTPUT = Path('/tmp/vllm-row-trace')
+_count = 0
+
+
+def snapshot(x, depth=0):
+    if isinstance(x, torch.Tensor):
+        if x.numel() > 200000:
+            return {'shape': list(x.shape), 'dtype': str(x.dtype), 'omitted': True}
+        return x.detach().cpu().clone()
+    if isinstance(x, np.ndarray):
+        return x.copy()
+    if x is None or isinstance(x, (str, int, float, bool)):
+        return x
+    if depth > 5:
+        return str(type(x))
+    if isinstance(x, dict):
+        return {str(k): snapshot(v, depth+1) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [snapshot(v, depth+1) for v in x]
+    if dataclasses.is_dataclass(x):
+        return {f.name: snapshot(getattr(x, f.name), depth+1)
+                for f in dataclasses.fields(x)}
+    return str(type(x))
+
+
+def begin(runner, batch, desc, tables, slots, metadata):
+    global _count
+    runner._row_trace_pending = None
+    if not CONTROL.exists():
+        return
+    control = json.loads(CONTROL.read_text())
+    if not control.get('enabled') or _count >= control.get('max_batches', 160):
+        return
+    if not any('rowtrace-' in r for r in batch.req_ids):
+        return
+    prompt = runner.req_states.prompt_len.np[batch.idx_mapping_np]
+    generated = batch.num_computed_tokens_np - prompt
+    if not np.any(generated < control.get('max_generated', 4)):
+        return
+    _count += 1
+    state = runner.req_states
+    n = batch.num_reqs
+    row = {
+        'pid': os.getpid(), 'step': _count, 'phase': control.get('phase'),
+        'batch': snapshot(batch), 'descriptor': snapshot(desc),
+        'request_id_to_index': dict(state.req_id_to_index),
+        'index_to_request_id': dict(state.index_to_req_id),
+        'prompt_len': prompt.copy(),
+        'computed_gpu': state.num_computed_tokens.gpu[batch.idx_mapping].cpu(),
+        'last_sampled': state.last_sampled_tokens[batch.idx_mapping].cpu(),
+        'block_tables': snapshot(tables), 'slot_mappings': snapshot(slots),
+        'num_blocks': runner.block_tables.num_blocks.np[:, batch.idx_mapping_np].copy(),
+        'attention_metadata': snapshot(metadata),
+        'state_token_ids': [state.all_token_ids.gpu[int(idx), :int(length)+5].cpu().clone()
+                            for idx, length in zip(batch.idx_mapping_np, prompt)],
+        'batch_sharded_sampling': runner.batch_sharder is not None,
+    }
+    mamba = runner.model_state
+    for name in ('_mamba_state_idx_gpu', 'num_accepted_tokens'):
+        if hasattr(mamba, name):
+            row[name] = snapshot(getattr(mamba, name))
+    runner._row_trace_pending = row
+    row['layers'] = []
+    for key in ('ngram_context', 'ple_query_start_loc'):
+        if hasattr(runner.model_state, key):
+            row[key] = snapshot(getattr(runner.model_state, key))
+    install_layer_hooks(runner)
+
+
+def scores(runner, batch, global_batch, hidden_states, logits):
+    row = getattr(runner, '_row_trace_pending', None)
+    if row is None:
+        return
+    row['sampling_batch'] = snapshot(batch)
+    row['sample_hidden_states'] = hidden_states.detach().cpu().clone()
+    row['raw_logits'] = logits.detach().cpu().clone()
+    idx = batch.idx_mapping
+    states = runner.sampler.sampling_states
+    row['temperature_cpu'] = states.temperature.np[batch.idx_mapping_np].copy()
+    row['temperature_gpu'] = states.temperature.gpu[idx].cpu().clone()
+
+
+def finish(runner, sampler_output):
+    row = getattr(runner, '_row_trace_pending', None)
+    if row is None:
+        return
+    row['sampler_output'] = snapshot(sampler_output)
+    OUTPUT.mkdir(exist_ok=True)
+    torch.save(row, OUTPUT / f"{row['pid']}-{row['step']:04d}.pt")
+    runner._row_trace_pending = None
+
+
+
+def install_layer_hooks(runner):
+    if hasattr(runner, '_row_trace_layer_handles'):
+        return
+    import re
+    runner._row_trace_layer_handles = []
+    pattern = re.compile(r'(?:^|\.)layers\.\d+(?:\.(?:linear_attn|self_attn|mlp|ple)(?:\.ple_embedding)?)?$')
+
+    def capture(name, event, value):
+        row = getattr(runner, '_row_trace_pending', None)
+        if row is None:
+            return
+        try:
+            indices = row['batch']['logits_indices'].long()
+            total = row['batch']['num_tokens_after_padding']
+            def select(v):
+                if isinstance(v, torch.Tensor):
+                    if v.ndim and v.shape[0] == total:
+                        return v.detach()[indices.to(v.device)].cpu().clone()
+                    return {'shape': list(v.shape), 'dtype': str(v.dtype)}
+                if isinstance(v, (tuple, list)):
+                    return [select(x) for x in v]
+                if isinstance(v, dict):
+                    return {k: select(x) for k,x in v.items()}
+                return None
+            row['layers'].append({'name':name, 'event':event, 'values':select(value)})
+        except Exception as exc:
+            row.setdefault('layer_errors', []).append(repr(exc))
+
+    for name, module in runner.model.named_modules():
+        if not (pattern.search(name) or name.endswith('.embed_tokens') or name.endswith('.norm')):
+            continue
+        def pre(module, args, kwargs, name=name):
+            capture(name, 'input', {'args': args, 'kwargs': kwargs})
+        def post(module, args, kwargs, output, name=name):
+            capture(name, 'output', output)
+        runner._row_trace_layer_handles.append(module.register_forward_pre_hook(pre, with_kwargs=True))
+        runner._row_trace_layer_handles.append(module.register_forward_hook(post, with_kwargs=True))
+
+
+def _guard(fn):
+    def wrapped(runner, *args):
+        if getattr(runner, '_row_trace_failed', False):
+            return
+        try:
+            return fn(runner, *args)
+        except Exception:
+            import traceback
+            OUTPUT.mkdir(exist_ok=True)
+            (OUTPUT / f'error-{os.getpid()}.txt').write_text(traceback.format_exc())
+            runner._row_trace_failed = True
+            runner._row_trace_pending = None
+    return wrapped
+
+
+begin = _guard(begin)
+scores = _guard(scores)
+finish = _guard(finish)

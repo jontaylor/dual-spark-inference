@@ -1,8 +1,116 @@
 # GB10 same-process NVMe request paging
 
+## Current production selection — original external PLE, 16 September 2026
+
+At the user's request, both nodes now run the original **external-only PLE
+implementation**, with one PLE process per node, CPU hashing, 16-thread mmap
+gather and the original mapped output transport. The comparison wrapper,
+inactive in-process reader, GPU hashing, policy mounts and custom syscall profile
+have been removed. The verified pre-experiment runner/layer versions are restored;
+other serving/paging settings remain s32/b8192/t1024, TP2/MTP3. Every inspected
+process/thread remains unrestricted on CPUs 0–19.
+
+Both configurations and source hashes passed dry-run validation before one
+coordinated reload. Both hosts passed live verification and API health,
+authentication, concurrent generation, tool-call and streaming checks. The
+selection is based on maintainability: the comparison below did not demonstrate
+a throughput winner. See [restoration and current operation](../experiments/ple-external-restore-20260916/README.md).
+
+The repeating test client remains held idle. API/Prometheus and client token
+timings remain available; the dual-backend per-step logger is no longer loaded,
+and the obsolete native-only monitor remains stopped. Backend policy files are
+no longer mounted, so changing them has no serving effect. A future dual-backend
+comparison needs an explicit redeployment of its archived configuration.
+Earlier current-state entries below describe historical experiment windows.
+
+## Current PLE comparison outcome — 16 September 2026, 14:33 BST
+
+Both full PLE backends are deployed behind a runtime selector, sharing the same
+captured output/flag addresses. The original external worker path retains its
+ZeroMQ handoff, CPU hash and 16-thread gather. The in-process path retains GPU
+hashing, SQPOLL and FULL-graph overlap. Exactly one path processes each batch;
+each retains its own cache in the comparison deployment. Loaded sources are
+frozen in `experiments/ple-backend-comparison-20260916/`.
+
+The completed fixed c12 campaign found **no demonstrated throughput winner**:
+external 261.46 versus in-process 262.57 output tokens/s. The four-pair geometric
+difference was +0.42%, with a preliminary 95% interval of −0.78% to +1.65%.
+All eight measured cycles did the same client/server token work; all 120
+requests including warmups passed repeat-output checks. Both nodes remained
+healthy with unchanged processes, and 5,851 aligned completed steps passed the
+telemetry audit. This is a warm synthetic workload, not a cold-I/O or general
+quality result. See [final analysis](../experiments/ple-backend-comparison-20260916/FINAL_ANALYSIS.md).
+
+**Current selection is in_process, epoch 14**, on both nodes. The new uint64
+`ple-backend-policy.bin` controls the full backend. The independent uint32
+`ple-read-policy.bin` remains zero, selecting SQPOLL and disabling the rejected
+prefetch candidate. Do not confuse these controls. Server settings remain
+s32/b8192/t1024, TP2/MTP3; all process/thread affinities are unrestricted 0–19.
+The external worker processes remain resident to allow switching without a
+restart. Do not infer the selected backend from process presence.
+
+The remote repeating client on jon@192.168.0.167 is held idle after ten cycles.
+Coordination uses the user-authorized thread **Review latest planner experiments (3)**,
+ID `01a09b9f-c6c7-7bb0-8c25-b22748f43388`. Common backend-aware JSONL telemetry
+remains active on both ranks. The previous native-only ple-serving-monitor
+service is stopped intentionally; it cannot attribute switching intervals.
+Switch only with the client held and serving drained, using the experiment's
+`set_backend.py`; its README documents verification and rollback. No additional
+restart is needed. Do not overwrite frozen mounts or daemon-reload unrelated
+pending unit edits. Earlier sections below are historical.
+
+## Latest PLE decision — 16 September 2026, 13:03 BST
+
+The batched-prefetch candidate was rejected after a same-worker/cache live
+comparison: GPU readiness regressed by0.44–0.63ms in matching10/12-request
+cycles on both ranks. Whole-step timing had only one matching cycle and did
+not establish superiority. Both hosts' explicit PLE control files are fixed to
+**mode0, the previous SQPOLL read path**; no ABBA switching remains. The running
+binary is the tested experimental reader in `experiments/ple-resident-20260916/`,
+not the previous binary, and canonical source remains reader17. Full binary
+rollback configs and launchers are preserved in that experiment directory.
+EngineCore/GPU workers remain unrestricted on CPUs0–19; serving remains
+s32/b8192/t1024,TP2/MTP3. Current decision and evidence are recorded in
+[selection](../results/ple-resident-20260916/selection.json) and
+[experiment notes](../experiments/ple-resident-20260916/README.md).
+Earlier status sections below describe previous experiment windows.
+
+
+## Current PLE status — 16 September 2026, 07:35 BST
+
+Fixed SQPOLL is now live on both ranks: native/connector17, GPU hash/wait12,
+overlap runner06. API smoke and live mount/environment/parameter verification
+passed. The completed 20-minute stability capture passed with 5,880 aligned
+batches, zero native errors and zero rank shape/policy mismatches. Both containers
+remained healthy with no restarts. Configuration is restored to **s32/b8192/t1024, TP2, MTP3**. PLE stays
+inside the GPU worker, with all unique misses submitted before waiting and
+without per-step application IPC or forced IOSQE_ASYNC. Experimental ABBA
+switching is disabled.
+
+The controlled 12-request comparison favoured SQPOLL in all 14 cycles on both
+ranks: GPU hash-to-ready-gate improvement 0.244/0.224 ms. At 24–25 requests the
+improvement was approximately 0.75–0.81 ms. Whole-step confidence intervals
+still include zero. These timings do not certify GPU L2 residency or model
+quality. See [campaign report](../experiments/ple-latency-campaign-20260916/FINAL_REPORT.md)
+for evidence, limits, validation and rollback.
+
+GPU worker threads have all CPUs 0–19. At the user’s subsequent request on
+16 September, EngineCore 127306 was also unpinned to CPUs 0–19 for all 76
+threads, without a restart. A short before/after check found no clear matched
+batch speedup; see [affinity comparison](../results/ple-engine-unpin-20260916/REPORT.md). Both NVMe
+latency constraints are 0, persisted with the campaign's udev rule (higher idle
+SSD power; no reboot test). GPU-validated rollback configs are
+`experiments/ple-latency-campaign-20260916/deploy.fixed-normal-r{0,1}.json`.
+Install BOTH host configs before head start, because its ExecStartPre starts
+the remote worker. Do not overwrite frozen mounted assets or daemon-reload
+unrelated pending unit changes. Historical campaign entries below are superseded
+by this current-state section.
+
+
 This deployment adds reservation-based admission and active-request parking to the
 existing NVIDIA NVFP4 service. It keeps TP2, expert parallelism, MTP3, the 98,304-ID
-draft vocabulary, BF16 KV, RoCEnante and Mia's FP8 PLE mmap path.
+draft vocabulary, BF16 KV, RoCEnante and the packed FP8 PLE table. The current
+PLE reader is described in the status section above.
 
 ## Serving configuration
 
@@ -189,3 +297,126 @@ between aligned boundaries. Matching follow-ups can reuse all but the last
 unprocessed token, while active-request parking remains aligned. See
 [completion-checkpoints.md](completion-checkpoints.md) for state coverage,
 validation, eviction, and rollback details.
+
+## Measured scheduler recommendation applied, 2026-09-15
+
+Following the user's request to implement the final work-score recommendation,
+both nodes' `deploy_config.json` now use `max_num_seqs=32`,
+`max_num_batched_tokens=8192`, and `long_prefill_token_threshold=1024`.
+Only the token budget changed from the preceding live configuration (16384).
+The example configuration now explicitly includes the 1024 threshold.
+
+The source is [the final campaign analysis](../experiments/empirical-work-score/smooth-final/FINAL_ANALYSIS.md):
+this is the best observed computational-work configuration, not a proven optimum
+or a correctness certification. Existing supplementary quality failures remain.
+
+Both launchers passed dry-run validation and both restarted containers expose
+the intended settings. Evidence is in `results/scheduler-recommendation-20260915/`.
+Each node retains its previous configuration at
+`deploy_config.json.before-work-leader-20260915`; restoring those files and
+restarting the head service rolls back the budget change.
+
+Post-restart API validation passed: health 200, unauthenticated access rejected
+with 401, both model aliases present, four concurrent arithmetic responses
+correct, weather tool call correct, and streamed `READY` completed. Results are
+in `results/scheduler-recommendation-20260915/smoke.json`. These are smoke checks,
+not a repetition of the campaign or broad quality certification.
+
+## In-process PLE lookup, 2026-09-16
+
+Both nodes now enable `optimizations.ple_in_process`. Hashing and batch read
+submission execute inside the GPU worker, with no separate PLE process or
+per-step PLE ZeroMQ handoff. All unique row-cache misses are submitted through
+`io_uring` before waiting; output is published only after all reads succeed.
+The container seccomp profile permits the required io_uring syscalls.
+
+Health, concurrent generation, tool calls, streaming and authentication checks
+passed after the coordinated restart. See
+[implementation and rollback](../experiments/ple-in-process-20260916/IMPLEMENTATION.md)
+for constraints, evidence and previous config/launcher copies. The scheduler
+remains s32/b8192/t1024. EngineCore affinity is 15–19, GPU workers 0–19.
+No end-to-end speedup or broad quality certification is claimed.
+
+### PLE reader regression investigation, 2026-09-16
+
+The initial in-process reader forced IOSQE_ASYNC on software-cache misses. At 768 rows a spark-1 profile measured 3.608 ms median native time, 3.125 ms median poll residence and 44.5 polls/batch. A candidate in `vllm-gb10-kv-paging/gb10/ple_batch_reader.c` removes forced worker scheduling and uses a bounded batch-completion wait after all submissions. Matched warm-file/no-row-cache 768-row median improved from 0.863 to 0.185 ms; this is a standalone benchmark, not a live result. Native tests and real GPU integration passed. **Historical status at that investigation:** the candidate was not yet deployed. It has since been superseded by the latency campaign below. Full evidence, limitations, candidate binary/source, and preserved baseline are in `results/ple-reader-investigation-20260916/REPORT.md`. Direct mmap copies still win some native microbenchmarks; do not claim a universal crossover or end-to-end gain.
+
+
+### Latency campaign history, 2026-09-16
+
+The forced-worker fix is now deployed, together with direct cache-to-output
+copies, GPU-side exact row-ID hashing and disabled NVMe autonomous low-power
+transitions. A spark-1 on/off/on experiment measured roughly 1.77 → 0.87 → 1.81 ms
+at 1536 rows, with spark-2 serving as the unchanged comparison; both controllers
+now have `power/pm_qos_latency_tolerance_us=0` (original 100000). This policy increases idle SSD power. It is now reapplied by the verified
+`/etc/udev/rules.d/99-gb10-ple-nvme-latency.rules` on both nodes when nvme0
+is added or changed; device-event tests passed, but a host reboot was not performed.
+
+At 04:19 BST both services began loading candidate 06, which submits reads before
+full CUDA graph replay and completes them on the same CPU thread after launch.
+Eager/piecewise execution stays synchronous. This restores potential overlap
+without any PLE subprocess or message bus. Exact native tests, CPU/CUDA-input real graph integration and live API smoke
+passed. Both nodes are healthy with automatic load resumed. The live timeline
+confirms overlap; occasional late publication under profiling remains under
+investigation, so no controlled end-to-end gain is claimed. The immediately
+preceding healthy configuration is `deploy.gpu-hash-r{0,1}.json` in the campaign
+folder; restore the corresponding config on each host and restart to roll back.
+
+Current configuration, evidence and remaining work are recorded in
+[the campaign worklog](../experiments/ple-latency-campaign-20260916/WORKLOG.md).
+Do not infer the active variant from the development checkout: serving mounts
+frozen per-variant files with verified hashes. No end-to-end gain is yet certified.
+
+
+At 04:43 BST, both nodes passed smoke with the same overlap path plus candidate
+07 GPU wait telemetry. Nsight is disabled. The verified optional
+`ple_mapped_wait_library` records wait duration and poll count in spare status
+buffer words; ready, delayed-publication and timeout behavior passed GPU tests.
+Active configs are `deploy.telemetry-r{0,1}.json`. No async issue-policy experiment
+is enabled in these configs; candidates 08/09 remain experimental.
+
+Low-overhead acceptance measured 1,072 completed GPU wait samples across both
+ranks, including 24-/32-request decode batches, with no polling for late PLE
+data and no native errors. Wait-loop ready checks were at most 0.512 µs; these
+exclude kernel launch/prologue cost. See `telemetry-baseline` and
+`telemetry-steady` results. Candidate 08 A/B configs are staged only and await
+GPU validation before any rollout.
+
+
+At 04:57 BST candidate 08 passed GPU validation and live smoke and began an
+ABBA submission-policy experiment (`deploy.async-ab-r{0,1}.json`, 64-step blocks).
+This is an active experiment, not the final chosen policy. Ten-minute capture
+found faster asynchronous submission but occasional millisecond GPU waits;
+end-to-end evidence remains inconclusive because few complete cycles matched
+request counts. Candidate 07 remains the healthy rollback. The campaign worklog
+tracks the active CPU-placement capture and next controlled affinity test.
+
+
+NVMe policy rollback: remove that udev rule on both nodes, reload udev rules,
+and restore `/sys/class/nvme/nvme0/power/pm_qos_latency_tolerance_us` to `100000`.
+The source rule and device-event validation logs are retained in the campaign.
+
+At 06:02 BST candidate12 GPU-clock timing passed live acceptance on both ranks:
+all configured runtime mounts verified, API smoke passed and representative load
+resumed. Active configs are `deploy.gate-timing-r{0,1}.json`; native reader08,
+connector/hash/wait12, runner06. The64-step ABBA normal/forced-worker experiment
+remains enabled and is not the final selected policy. GPU workers and their
+threads are unrestricted0–19; EngineCore15–19. Candidate16 SQPOLL comparison is
+staged only and still requires GPU integration before deployment.
+
+Operational correction: the head unit's **ExecStartPre starts the remote worker**.
+Install and verify BOTH host configs before starting the head; otherwise the
+remote rank can load the previous config. The first12 restart hit this race and
+was corrected. `verify_live.py --config-prefix deploy.gate-timing --output PATH`
+now checks every live runtime mount on both nodes immediately after startup.
+The mismatched first capture is retained as `gate-timing-validation` and must
+not be used as a two-rank12 comparison. Use `gate-timing-corrected` instead.
+
+At 06:10 BST candidate16 passed GPU validation and began loading for a
+same-reader/cache **normal-versus-SQPOLL** ABBA comparison. Active configs are
+now `deploy.sqpoll-ab-r{0,1}.json`, verified on both ranks immediately after
+startup. Reader16 uses the `submit_async` experiment entrypoint for SQPOLL;
+it does **not** force IOSQE_ASYNC. Capture metadata must say
+`--async-policy sqpoll`. Connector/hash/wait12 and runner06 are unchanged.
+Live smoke and the first600s timing capture remain pending; see WORKLOG.md
+for the active job. This is still an experiment, not the final selected policy.

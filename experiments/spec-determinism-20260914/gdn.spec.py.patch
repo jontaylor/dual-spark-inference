@@ -1,0 +1,10 @@
+--- experiments/targeted-determinism-20260913/gdn.execution.py
++++ gdn.spec.py
+@@ -58,6 +58,7 @@
+     fused_recurrent_gated_delta_rule_packed_decode,
+     fused_sigmoid_gating_delta_rule_update,
+ )
++from vllm.third_party.flash_linear_attention.ops.gb10_spec_recurrent import fused_sigmoid_gating_delta_rule_update
+ from vllm.third_party.flash_linear_attention.ops.chunk import l2norm_fwd
+ from vllm.third_party.flash_linear_attention.ops.utils import FLA_CHUNK_SIZE
+ from vllm.transformers_utils.configs.qwen3_next import Qwen3NextConfig

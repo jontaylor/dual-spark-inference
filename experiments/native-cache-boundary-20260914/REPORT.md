@@ -1,0 +1,19 @@
+# Native cache boundary audit
+
+Checked the installed serving implementation without changing or restarting the service. CPU tests invoke the installed Platform._align_hybrid_block_size and MambaManager._cache_partial_tail_block methods, using actual model shape calculators and a QSA backend fixture with its installed MultipleOf(16) support. These are configuration/component checks, not a full-model native-mode benchmark.
+
+## Findings
+
+1. The 1920 block was introduced in the MTP5 experiment, not dictated by the model architecture. The archived MTP5 layout check and experiment ledger document the transition from MTP3/1600 to MTP5/1920. It remained configured after returning to MTP3.
+2. Physical blocks cannot simply become 32 or 64 with the installed allocator. The alignment routine requires an attention page to cover the largest recurrent-state page. MTP3 state is 1,634,304 bytes; attention uses 1,024 bytes per token in this layout. Requests for block 16, 32 or 64 become 1600. Explicit mamba_block_size=64 is overwritten to the resolved attention block size in align mode. This is an implementation constraint, not a fundamental mathematical requirement.
+3. There is a separate native prefix_match_unit option for finer hash matching without shrinking physical pages. It is currently unset. Fine-grained hybrid support appears in upstream-origin commit 481e481be786c1ca3229e26aa34c15ffd22375af, PR #46384. The installed manager and scheduler have additional local changes, so this audit does not equate the entire installed fork with unmodified upstream.
+4. Native partial-tail registration is restricted to floor(num_prompt_tokens/hash_block_size)*hash_block_size. Direct invocation with prompt length10001 and match unit64 registers state at9984, but rejects later positions10048 and10112. The same prompt-only condition appears in the upstream-origin commit. The installed scheduler also limits these special stops to prefill. Thus finer matching supports prompt-end reuse; it does not automatically preserve a precise generated-output endpoint.
+5. Removing custom completion capture and enabling finer native matching is a real alternative, not one we have disproved. It should reduce the coarse older-prompt replay, but previous generated output can still require replay back to the newest available native recurrent checkpoint. No full-model performance/determinism validation of that alternative was run during this audit.
+
+## Concrete options
+
+For MTP3, a1600 physical block is compatible with the checked layout; changing from1920 reduces padded per-layer page bytes from1,966,080 to1,638,400 (16.7%); this is not a claim of the same percentage total KV capacity gain. A64-token prefix_match_unit divides both1600 and1920 and matches the existing64-token arithmetic grid. The launcher currently does not expose this option. Native-only completion reuse would require disabling the completion-cache flags, retaining pressure offload separately, adding the launcher option and validating the resulting scheduler/worker path. A32-token matching unit also divides the physical sizes but its stops need separate verification against local64-token deterministic scheduling.
+
+No evidence here establishes that our custom path is the only solution or the fastest one. It establishes why a smaller block flag alone will not deliver the proposed behaviour, and identifies native finer matching as the concrete comparison to test.
+
+Evidence: check.py, check.log, results.json. Relevant installed sources: platforms/interface.py:767; config/cache.py:100; v1/core/single_type_kv_cache_manager.py:1895; v1/core/sched/scheduler.py:425; models/qwen4_exp/nvidia/qsa.py:81. Existing historical layout evidence: ../performance-until-10am-20260914/mtp5-layout-checks.json and SELECTION-before-J-validation.md.

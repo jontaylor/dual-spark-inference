@@ -11,12 +11,21 @@ validation evidence, limitations, start/stop commands and rollback.
 
 This is an experimental same-process pager. It does not preserve requests
 across engine restart or guarantee completed-conversation reuse. The existing
-Mia PLE mmap path, TP2+EP, MTP3, 98K draft vocabulary and RoCEnante are retained.
+Mia external-worker PLE mmap path, TP2+EP, MTP3 and RoCEnante are retained.
 
 Code is derived from [MiaAI’s dual-Spark setup](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Next-Dual-DGX-Sparks)
 and the local vLLM 0.29.0 branch. The source overlay revision and hashes are in
 `paging-manifest.json`; the tested configuration is in `deploy_config.example.json`.
 Local runtime files and credentials are gitignored. No credentials are bundled.
+
+The September 16 selection restores the original external PLE workers after a
+repeated comparison found no demonstrated throughput gain from the in-process
+replacement. See the [restoration record](experiments/ple-external-restore-20260916/README.md),
+[measured comparison](experiments/ple-backend-comparison-20260916/FINAL_ANALYSIS.md)
+and [experiment archive guide](experiments/README.md). The example configuration
+includes the deployed, hash-verified runtime overlays; adapt its paths, network
+settings and image identity for your hosts. The server submodule and paging
+manifest pin the same published source revision.
 
 The previous release’s description is archived in
 [the v0.29 release record](docs/v029-release-readme.md).

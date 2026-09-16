@@ -1,0 +1,25 @@
+import subprocess,time,urllib.request
+from pathlib import Path
+root=Path(__file__).resolve().parent
+start=time.monotonic()
+while time.monotonic()-start<900:
+    status=subprocess.run(['systemctl','is-active','qwen38-next-qwen-fp8.service'],capture_output=True,text=True)
+    if status.stdout.strip()!='active':raise RuntimeError('Serving service stopped')
+    logs=subprocess.run(['docker','logs','--tail','20','qwen38-kv-paging-r0'],capture_output=True,text=True)
+    if 'Engine core initialization failed' in logs.stdout+logs.stderr:raise RuntimeError('Engine failed')
+    try:
+        with urllib.request.urlopen('http://127.0.0.1:30001/health',timeout=2) as r:
+            if r.status==200:break
+    except Exception:pass
+    time.sleep(5)
+else:raise TimeoutError('Candidate readiness deadline exceeded')
+print('Permanent candidate healthy; starting full-response validation',flush=True)
+import json
+all_rows=[]
+for mode in ['normal-final','normal-final-seed']:
+    subprocess.run([str(root.parents[1]/'.venv/bin/python'),str(root/'probe.py'),mode],check=True)
+    rows=json.loads((root/mode/'results.json').read_text())
+    all_rows.extend(rows)
+    ref=all_rows[0]
+    assert all(r['error'] is None and r['token_ids']==ref['token_ids'] and r['logprobs']==ref['logprobs'] for r in all_rows), mode+' diverged'
+    print(mode+' exact token/score equality passed',flush=True)

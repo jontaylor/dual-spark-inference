@@ -1,0 +1,26 @@
+--- /home/jon/dual-spark-inference-kv-paging/experiments/aggregate-throughput-20260914/scheduler.aligned.py
++++ /home/jon/dual-spark-inference-kv-paging/experiments/completion-triggered-20260914/scheduler.events.py
+@@ -333,8 +333,8 @@
+             self.has_mamba_layers and self.cache_config.mamba_cache_mode == "align"
+         )
+         if self.has_mamba_layers:
+-            if self.use_eagle and (speculative_config.method != "mtp" or self.num_spec_tokens > 3):
+-                raise ValueError("Targeted GDN invariance supports only MTP with up to 3 draft tokens")
++            if self.use_eagle and (speculative_config.method != "mtp" or self.num_spec_tokens > 5):
++                raise ValueError("Targeted GDN invariance supports only MTP with up to 5 draft tokens")
+             if self.block_size % 64:
+                 raise ValueError("GDN cache checkpoints must align to the 64-token grid")
+             if self.max_num_scheduled_tokens < 64:
+@@ -409,7 +409,11 @@
+                  + num_external_computed_tokens)
+         prefill_end = max(request.num_prompt_tokens, request.num_tokens - 1)
+         if start < prefill_end and start % 64:
+-            raise ValueError("GDN invariant prefill requires a 64-aligned cached state")
++            # An exact completion checkpoint can start inside an arithmetic
++            # tile. Process that fixed prefix separately, then rejoin the
++            # absolute 64-token grid. Batch occupancy cannot move this stop.
++            required = min(64 - start % 64, prefill_end - start)
++            return required if num_new_tokens >= required else 0
+         count = self._cache_aligned_split(
+             request, num_new_tokens, num_new_local_computed_tokens,
+             num_external_computed_tokens,

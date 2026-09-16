@@ -1,0 +1,20 @@
+--- /home/jon/dual-spark-inference-kv-paging/experiments/performance-until-10am-20260914/parking_scheduler.reservation.py
++++ /home/jon/dual-spark-inference-kv-paging/experiments/allocation-deferral-implementation-20260914/parking_scheduler.py
+@@ -246,6 +246,7 @@
+         return True
+ 
+     def schedule(self, throttle_prefills=False):
++        self._parking_connector.retry_completion_allocations()
+         for request in list(self.running):
+             rid = request.request_id
+             required_tokens = request.num_tokens + self.num_lookahead_tokens + 1
+@@ -333,6 +334,9 @@
+ 
+     def _free_blocks(self, request):
+         rid = request.request_id
++        native = self._parking_connector._native_pressure
++        if native is not None:
++            native.deferred_requests.pop(rid, None)
+         super()._free_blocks(request)
+         # Base delays this call for a cancelled request with load I/O pending.
+         checkpoint = self._parked.pop(rid, None)

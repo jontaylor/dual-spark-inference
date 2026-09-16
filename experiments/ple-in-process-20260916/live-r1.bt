@@ -1,0 +1,3 @@
+uprobe:/proc/2817658/root/opt/gb10/libple_batch_reader.so:gb10_ple_reader_gather /pid==2817658/ { @start[tid]=nsecs; @rows[tid]=arg2; }
+uretprobe:/proc/2817658/root/opt/gb10/libple_batch_reader.so:gb10_ple_reader_gather /pid==2817658 && @start[tid]/ { printf("%llu %llu %lld\n",@rows[tid],nsecs-@start[tid],retval); delete(@start[tid]); delete(@rows[tid]); }
+interval:s:20 { exit(); }

@@ -1,0 +1,39 @@
+--- qsa.original.py
++++ qsa.fixed.py
+@@ -8,6 +8,9 @@
+ 
+ import torch
+ from torch import nn
++from vllm.model_executor.determinism.gb10_targeted import FixedBF16LinearMethod
++from vllm.model_executor.layers.linear import UnquantizedLinearMethod
++from vllm.v1.worker.gpu.gb10_row_trace import qsa_stage
+ 
+ from vllm.config import VllmConfig
+ from vllm.config.cache import CacheDType
+@@ -309,6 +312,10 @@
+             quant_config=quant_config,
+             prefix=f"{prefix}.indexer",
+         )
++        for projection in (self.qkv_proj, self.o_proj, self.indexer.index_qk_proj):
++            if not isinstance(projection.quant_method, UnquantizedLinearMethod):
++                raise TypeError("Targeted QSA invariance requires BF16 projections")
++            projection.quant_method = FixedBF16LinearMethod()
+         max_tokens = vllm_config.scheduler_config.max_num_batched_tokens
+         self.register_buffer(
+             "topk_indices_buffer",
+@@ -400,6 +407,7 @@
+     ) -> torch.Tensor:
+         qkv, _ = self.qkv_proj(hidden_states)
+         q, k, v, gate = self._project_qkv_gate(qkv, positions)
++        qsa_stage(self.layer_name, "qkv_gate", q=q, k=k, v=v, gate=gate)
+         num_tokens = hidden_states.shape[0]
+         query = q.view(num_tokens, self.num_heads, self.head_dim)
+         key = k.view(num_tokens, self.num_kv_heads, self.head_dim)
+@@ -426,6 +434,7 @@
+                 attn_output,
+                 encoded_layer_name,
+             )
++        qsa_stage(self.layer_name, "attention_core", output=attn_output)
+         flat_output = attn_output.view(num_tokens, -1)
+         if gate is not None:
+             flat_output = flat_output * torch.sigmoid(gate)

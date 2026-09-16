@@ -1,0 +1,22 @@
+--- /home/jon/dual-spark-inference-kv-paging/experiments/allocation-deferral-20260914/distributed__kv_transfer__kv_connector__v1__offloading__common.py
++++ /home/jon/dual-spark-inference-kv-paging/experiments/allocation-deferral-implementation-20260914/common.py
+@@ -83,6 +83,7 @@
+     """
+ 
+     completed_jobs: dict[int, int] = field(default_factory=dict)
++    source_preserved: dict[int, set[int]] = field(default_factory=dict)
+     transfer_stats: TransferStats = field(default_factory=TransferStats)
+ 
+     def mark_completed(self, job_id: int) -> None:
+@@ -98,7 +99,11 @@
+         for job_id, v in other.completed_jobs.items():
+             merged[job_id] = merged.get(job_id, 0) + v
+ 
++        sources = {jid: set(ranks) for jid, ranks in self.source_preserved.items()}
++        for jid, ranks in other.source_preserved.items():
++            sources.setdefault(jid, set()).update(ranks)
+         return OffloadingWorkerMetadata(
++            source_preserved=sources,
+             completed_jobs=merged,
+             transfer_stats=self.transfer_stats.aggregate(other.transfer_stats),
+         )

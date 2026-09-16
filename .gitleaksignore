@@ -1,2 +1,17 @@
 # Reviewed false positive: SHA256 of the public pinned tokenizer.json, verified against the checkpoint.
 45f8a772d973eef79440c0f81640a576d8deab83:assets/draft-vocab-provenance.json:generic-api-key:14
+
+# Reviewed September 16 publication: Python attribute assignments and prose
+# token/timing measurements; no literal credentials in these exact findings.
+experiments/checkpoint-sweetspot-20260914/REPORT.md:generic-api-key:64
+experiments/aggregate-throughput-20260914/scheduler.v1.rejected.py:generic-api-key:634
+experiments/allocation-deferral-20260914/core__sched__scheduler.py:generic-api-key:637
+experiments/system-state-audit-20260914/build_report.py:generic-api-key:39
+experiments/performance-until-10am-20260914/LEDGER.md:generic-api-key:260
+experiments/performance-until-10am-20260914/scheduler.mtp5.py:generic-api-key:633
+experiments/completion-triggered-20260914/scheduler.events.py:generic-api-key:637
+experiments/aggregate-throughput-20260914/scheduler.aligned.py:generic-api-key:633
+experiments/allocation-deferral-implementation-20260914/scheduler.py:generic-api-key:638
+experiments/spec-determinism-20260914/scheduler.spec.py:generic-api-key:633
+experiments/targeted-determinism-20260913/scheduler.fixed.py:generic-api-key:633
+experiments/targeted-determinism-20260913/scheduler.original.py:generic-api-key:604

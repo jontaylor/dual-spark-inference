@@ -1,0 +1,73 @@
+[
+  {
+    "rank": 0,
+    "container_pid": 455612,
+    "running": true,
+    "oom_killed": false,
+    "restarts": 0,
+    "processes": [
+      "455612              vllm",
+      "456150              python3",
+      "456151              VLLM::EngineCor",
+      "456247              VLLM::Worker_TP",
+      "456509              python3",
+      "457540              torch_shm_manag"
+    ],
+    "external_workers": [
+      456509
+    ],
+    "threads": 368,
+    "restricted_affinity": [],
+    "native_libraries": [],
+    "parameters": {
+      "--max-num-seqs": "32",
+      "--max-num-batched-tokens": "8192",
+      "--long-prefill-token-threshold": "1024",
+      "--tensor-parallel-size": "2"
+    },
+    "original_source_sha256": {
+      "connector": "c3eed6542908a363f9ea2373ffa609b7b6b9e2bb418e5004e0b69a350578f4e8",
+      "worker": "1be55c3790a4000aba4fd39ba2614a14bbc75256066c77bf01dd97d888afe4c8",
+      "protocol": "cf64579ca3cf1daa9ff617a1a8c4690e0db2d1d7412a74e3b8b32629492a05da"
+    },
+    "security_options": [
+      "label=disable"
+    ],
+    "errors": []
+  },
+  {
+    "rank": 1,
+    "container_pid": 3935525,
+    "running": true,
+    "oom_killed": false,
+    "restarts": 0,
+    "processes": [
+      "3935525             vllm",
+      "3936169             python3",
+      "3936170             VLLM::Worker_TP",
+      "3936848             python3",
+      "3940673             torch_shm_manag"
+    ],
+    "external_workers": [
+      3936848
+    ],
+    "threads": 306,
+    "restricted_affinity": [],
+    "native_libraries": [],
+    "parameters": {
+      "--max-num-seqs": "32",
+      "--max-num-batched-tokens": "8192",
+      "--long-prefill-token-threshold": "1024",
+      "--tensor-parallel-size": "2"
+    },
+    "original_source_sha256": {
+      "connector": "c3eed6542908a363f9ea2373ffa609b7b6b9e2bb418e5004e0b69a350578f4e8",
+      "worker": "1be55c3790a4000aba4fd39ba2614a14bbc75256066c77bf01dd97d888afe4c8",
+      "protocol": "cf64579ca3cf1daa9ff617a1a8c4690e0db2d1d7412a74e3b8b32629492a05da"
+    },
+    "security_options": [
+      "label=disable"
+    ],
+    "errors": []
+  }
+]

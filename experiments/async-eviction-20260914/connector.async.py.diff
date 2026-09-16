@@ -1,0 +1,17 @@
+--- experiments/gpu-native-completion-20260914/connector.gpu.py
++++ experiments/async-eviction-20260914/connector.async.py
+@@ -496,7 +496,13 @@
+         if getattr(metadata, "native_eviction_jobs", None):
+             # Drain before finish/free/add/update_requests, which can zero or
+             # COW into the physical blocks just allocated by the scheduler.
+-            self.connector_worker.handle_preemptions(metadata)
++            worker = self.connector_worker.worker
++            native = set(metadata.native_eviction_jobs)
++            worker.source_fence_jobs.update(native)
++            try:
++                self.connector_worker.handle_preemptions(metadata)
++            finally:
++                worker.source_fence_jobs.difference_update(native)
+             metadata.jobs_to_flush = None
+             metadata.native_eviction_jobs.clear()
+         if self._completion_enabled:

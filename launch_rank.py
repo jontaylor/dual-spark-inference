@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Launch a pinned NVIDIA NVFP4 rank with the same-process request pager."""
 import json
+import hashlib
 from runtime_config import load_config, model_snapshot, resolve_path
 import subprocess
 import sys
@@ -12,7 +13,8 @@ rank = int(sys.argv[1])
 assert rank in (0,1)
 assert cfg['model_id'] == 'nvidia/Qwen3.8-Flash-Next-NVFP4'
 assert cfg['kv_cache_dtype'] == 'bfloat16'
-assert cfg['tensor_parallel_size'] == 2 and cfg['expert_parallel'] and cfg['mtp_tokens'] == 3
+assert cfg['tensor_parallel_size'] == 2 and cfg['expert_parallel']
+assert isinstance(cfg['mtp_tokens'], int) and cfg['mtp_tokens'] >= 0
 snapshot = (resolve_path(cfg['paths']['hf_cache'], root) / ('models--' + cfg['model_id'].replace('/', '--')) / 'snapshots')/cfg['revision']
 source_config = json.loads((snapshot/'config.json').read_text())
 assert source_config['quantization_config']['quant_method'] == 'modelopt'
@@ -45,8 +47,19 @@ verify_runtime(cfg, root, rank)
 cmd=['docker','run','--name',name,'--gpus','all','--network','host','--ipc','host',
      '--cap-add','SYS_NICE','--ulimit','memlock=-1','--ulimit','stack=67108864',
      '--device','/dev/infiniband:/dev/infiniband','--entrypoint','python3']
+runtime_overrides = cfg.get('runtime_overrides', {})
+mounted_destinations = set()
 def mount(src,dest):
+    relative = dest.removeprefix(pkg + '/') if dest.startswith(pkg + '/') else None
+    if relative in runtime_overrides:
+        src = resolve_path(runtime_overrides[relative], root)
+        expected = cfg.get('runtime_override_sha256', {}).get(relative)
+        if not expected or hashlib.sha256(Path(src).read_bytes()).hexdigest() != expected:
+            raise RuntimeError(f'Unverified runtime override: {relative}')
     assert Path(src).exists(), src
+    if dest in mounted_destinations:
+        raise RuntimeError(f'Duplicate mount destination: {dest}')
+    mounted_destinations.add(dest)
     cmd.extend(['-v',f'{src}:{dest}:ro'])
 model_path = '/model-store/snapshots/' + cfg['revision']
 mount(snapshot.parent.parent,'/model-store')
@@ -55,6 +68,7 @@ mount(root/'files/paging/model_runner.py', f'{pkg}/v1/worker/gpu/model_runner.py
 mount(root/'files/paging/rank_local_disk.py', f'{pkg}/v1/kv_offload/rank_local_disk.py')
 mount(root/'container_entry.py','/opt/container_entry.py')
 mount(root/'files/paging/aligned_connector.py', f'{pkg}/distributed/kv_transfer/kv_connector/v1/gb10_aligned_offloading_connector.py')
+mount(root/'files/paging/offloading_scheduler.py', f'{pkg}/distributed/kv_transfer/kv_connector/v1/offloading/scheduler.py')
 cmd.extend(['-v', str(resolve_path(cfg['kv_paging']['disk_root'], root))+':/kv-disk'])
 mount(Path(__file__).resolve().parent/'files/modelopt_patched.py', f'{pkg}/model_executor/layers/quantization/modelopt.py')
 if not cfg.get('server_in_image'):
@@ -80,7 +94,75 @@ env={
 if 'enable_roce_allreduce' in cfg:
     assert isinstance(cfg['enable_roce_allreduce'], bool)
     env['VLLM_ENABLE_ROCE_ALLREDUCE'] = str(int(cfg['enable_roce_allreduce']))
+if cfg.get('speculative_plugin_path'):
+    plugin = resolve_path(cfg['speculative_plugin_path'], root)
+    for relative, expected in cfg['speculative_plugin_sha256'].items():
+        if hashlib.sha256((plugin / relative).read_bytes()).hexdigest() != expected:
+            raise RuntimeError(f'Unverified speculative plugin file: {relative}')
+    mount(plugin, '/opt/speculative-plugin')
+    image_env = json.loads(subprocess.check_output(
+        ['docker', 'image', 'inspect', cfg['image'], '--format', '{{json .Config.Env}}'], text=True))
+    prior_pythonpath = next((v.split('=', 1)[1] for v in image_env if v.startswith('PYTHONPATH=')), '')
+    env['PYTHONPATH'] = '/opt/speculative-plugin' + (':' + prior_pythonpath if prior_pythonpath else '')
+if cfg.get('draft_model_path'):
+    mount(resolve_path(cfg['draft_model_path'], root), '/speculative-draft')
 opts = cfg.get('optimizations', {})
+if opts.get('ple_in_process'):
+    if not opts.get('ple_mapped_transport'):
+        raise ValueError('In-process PLE requires mapped transport')
+    env['GB10_PLE_IN_PROCESS'] = '1'
+    for key in ('ple_batch_library', 'ple_io_uring_seccomp'):
+        path = resolve_path(cfg[key], root)
+        if hashlib.sha256(Path(path).read_bytes()).hexdigest() != cfg[key + '_sha256']:
+            raise RuntimeError(f'Unverified PLE asset: {key}')
+    mount(resolve_path(cfg['ple_batch_library'], root), '/opt/gb10/libple_batch_reader.so')
+    cmd += ['--security-opt', 'seccomp=' + str(resolve_path(cfg['ple_io_uring_seccomp'], root))]
+if opts.get('ple_read_control'):
+    path = resolve_path(opts['ple_read_control'], root)
+    if not path.is_file() or path.stat().st_size != 4096:
+        raise ValueError('PLE read control must be a 4096-byte policy file')
+    mount(path, '/opt/gb10/ple-read-policy.bin')
+    env['GB10_PLE_READ_CONTROL'] = '/opt/gb10/ple-read-policy.bin'
+if opts.get('ple_backend_control'):
+    if not opts.get('ple_in_process') or not opts.get('ple_mapped_transport'):
+        raise ValueError('PLE backend comparison requires both mapped backends')
+    path = resolve_path(opts['ple_backend_control'], root)
+    if not path.is_file() or path.stat().st_size != 4096:
+        raise ValueError('PLE backend control must be a 4096-byte policy file')
+    mount(path, '/opt/gb10/ple-backend-policy.bin')
+    env['GB10_PLE_BACKEND_CONTROL'] = '/opt/gb10/ple-backend-policy.bin'
+    output = resolve_path(opts['ple_comparison_log_dir'], root) / ('rank' + str(rank))
+    output.mkdir(parents=True, exist_ok=True, mode=0o700)
+    cmd.extend(['-v', f'{output}:/ple-comparison'])
+    env['GB10_PLE_COMPARISON_LOG_DIR'] = '/ple-comparison'
+if opts.get('ple_overlap'):
+    if not opts.get('ple_in_process'):
+        raise ValueError('PLE overlap requires in-process PLE')
+    env['GB10_PLE_OVERLAP'] = '1'
+if 'ple_submission_policy' in opts:
+    policy = opts['ple_submission_policy']
+    if policy not in ('normal', 'sqpoll'):
+        raise ValueError('PLE submission policy must be normal or sqpoll')
+    if not opts.get('ple_in_process'):
+        raise ValueError('PLE submission policy requires in-process PLE')
+    if policy == 'sqpoll' and not opts.get('ple_overlap'):
+        raise ValueError('PLE SQPOLL requires graph overlap')
+    if opts.get('ple_async_ab_steps'):
+        raise ValueError('Fixed PLE policy cannot enable experimental A/B switching')
+    env['GB10_PLE_SUBMISSION_POLICY'] = policy
+if opts.get('ple_async_ab_steps'):
+    steps = int(opts['ple_async_ab_steps'])
+    if steps < 1 or not opts.get('ple_overlap'):
+        raise ValueError('PLE issue-policy A/B requires overlap and positive block size')
+    env['GB10_PLE_ASYNC_AB_STEPS'] = str(steps)
+if opts.get('ple_gpu_hash'):
+    if not opts.get('ple_in_process'):
+        raise ValueError('GPU PLE hashing requires in-process PLE')
+    path = resolve_path(cfg['ple_hash_library'], root)
+    if hashlib.sha256(path.read_bytes()).hexdigest() != cfg['ple_hash_library_sha256']:
+        raise RuntimeError('Unverified PLE GPU hash library')
+    mount(path, '/opt/gb10/libple_hash_gpu.so')
+    env['GB10_PLE_GPU_HASH'] = '1'
 if opts.get('kv_cache_accounting'):
     env['GB10_KV_ACCOUNTING'] = '1'
 if opts.get('fair_prefill'):
@@ -97,6 +179,11 @@ if opts.get('draft_head_gemm'):
     env['GB10_DRAFT_HEAD_GEMM'] = '1'
 if opts.get('ple_mapped_transport'):
     env['GB10_PLE_MAPPED_TRANSPORT'] = '1'
+    if cfg.get('ple_mapped_wait_library'):
+        path = resolve_path(cfg['ple_mapped_wait_library'], root)
+        if hashlib.sha256(path.read_bytes()).hexdigest() != cfg['ple_mapped_wait_library_sha256']:
+            raise RuntimeError('Unverified PLE mapped wait library')
+        mount(path, '/opt/gb10/libmapped_wait.so')
 if opts.get('ple_native_hash'):
     env['GB10_PLE_NATIVE_HASH'] = '1'
 env['GB10_PLE_ROW_CACHE_MB'] = str(opts.get('ple_row_cache_mb', 0))
@@ -132,10 +219,27 @@ args=[model_path,'--served-model-name',*cfg['served_names'],
  '--max-model-len',str(cfg['max_model_len']),'--kv-cache-dtype',cfg['kv_cache_dtype'],
  '--load-format','safetensors','--safetensors-load-strategy','lazy','--enable-chunked-prefill',
  '--reasoning-parser','qwen3','--enable-auto-tool-choice','--tool-call-parser','qwen3_coder',
- '--mm-encoder-tp-mode',cfg['mm_encoder_tp_mode'],
- '--speculative-config',json.dumps({'method':'mtp','num_speculative_tokens':cfg['mtp_tokens'],
-     'use_local_argmax_reduction':bool(opts.get('draft_local_argmax', False))})]
+ '--mm-encoder-tp-mode',cfg['mm_encoder_tp_mode']]
+if 'long_prefill_token_threshold' in cfg:
+    args += ['--long-prefill-token-threshold', str(cfg['long_prefill_token_threshold'])]
+if cfg['mtp_tokens']:
+    speculative = {'method': cfg.get('speculative_method', 'mtp'), 'num_speculative_tokens': cfg['mtp_tokens'],
+                   'use_local_argmax_reduction': bool(opts.get('draft_local_argmax', False))}
+    for key in ('draft_sample_method', 'num_speculative_tokens_per_batch_size',
+                'index_share_for_mtp_iteration'):
+        if key in cfg:
+            speculative[key] = cfg[key]
+    if cfg.get('draft_model_path'):
+        speculative['model'] = '/speculative-draft'
+        speculative['draft_tensor_parallel_size'] = cfg.get('draft_tensor_parallel_size', 2)
+        speculative['quantization'] = cfg.get('draft_quantization')
+        if cfg.get('draft_attention_backend'):
+            speculative['attention_backend'] = cfg['draft_attention_backend']
+    args += ['--speculative-config', json.dumps(speculative)]
 # Explicit policies keep changed defaults from altering this A/B test.
+if cfg.get('block_size') is not None:
+    assert isinstance(cfg['block_size'], int) and cfg['block_size'] > 0
+    args += ['--block-size', str(cfg['block_size'])]
 if cfg.get('mamba_cache_mode'):
     args += ['--mamba-cache-mode', cfg['mamba_cache_mode']]
 if 'prefix_cache_retention_interval' in cfg:
@@ -160,6 +264,8 @@ elif cfg['graph_mode']=='full_decode':
     args+=['--compilation-config',json.dumps({'mode':0,'cudagraph_mode':'FULL_DECODE_ONLY',
         'cudagraph_capture_sizes':cfg.get('cudagraph_capture_sizes', [4*s for s in range(1,cfg['max_num_seqs']+1)])})]
 else:raise ValueError('Unknown graph mode')
+if rank == 0 and cfg.get('trust_request_chat_template', False):
+    args += ['--trust-request-chat-template']
 if rank:args+=['--headless']
 else:args+=['--host','0.0.0.0','--port',str(cfg['port'])]
 paging = cfg.get('kv_paging', {})
@@ -171,12 +277,23 @@ args += ['--kernel-config', '{"enable_flashinfer_autotune":false}', '--kv-cache-
   'spec_module_path':'vllm.v1.kv_offload.rank_local_disk',
   'disk_bytes_per_rank':paging['disk_bytes_per_rank'],'staging_blocks':paging.get('staging_blocks',4),'root_dir':'/kv-disk','verify_transfers':paging.get('verify_transfers',True),
   **({'parking_block_budget': paging['block_budget']} if 'block_budget' in paging else {}),
+  **({'parking_reservation_tokens': paging['reservation_tokens']} if 'reservation_tokens' in paging else {}),
   'parking_test_after_generated_tokens':paging.get('force_after_generated', 0),
   'completion_checkpoints':paging.get('completion_checkpoints',False),
+  'disk_write_policy':paging.get('disk_write_policy','eager'),
+  'memory_completion_cache':paging.get('memory_completion_cache',False),
+  'native_completion_cache':paging.get('native_completion_cache',False),
+  'parking_save_timeout_seconds':paging.get('save_timeout_seconds',300),
   'blocks_per_chunk':1,'offload_prompt_only':False}})]
 args += ['--no-async-scheduling', '--scheduler-cls', 'vllm.v1.core.sched.gb10_parking_scheduler.GB10ParkingScheduler']
 for filename, target in [('parking_scheduler_base.py','scheduler.py'),('parking_policy.py','parking_policy.py'),('gb10_parking_scheduler.py','gb10_parking_scheduler.py')]:
     mount(root/'files/paging'/filename, f'{pkg}/v1/core/sched/{target}')
+for relative, source in runtime_overrides.items():
+    if relative.startswith('/') or '..' in Path(relative).parts:
+        raise ValueError(f'Invalid runtime override path: {relative}')
+    destination = f'{pkg}/{relative}'
+    if destination not in mounted_destinations:
+        mount(resolve_path(source, root), destination)
 cmd += [cfg['image'],'/opt/container_entry.py',*args]
 print(json.dumps({'rank':rank,'image':cfg['image'],'model':cfg['model_id'],'revision':cfg['revision'],
                   'port':cfg['port'],'ple':'local_nvme_mmap','args':args}),flush=True)

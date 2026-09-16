@@ -1,0 +1,1282 @@
+diff --git a/gb10/build.sh b/gb10/build.sh
+index b705073dea..640eee7c46 100755
+--- a/gb10/build.sh
++++ b/gb10/build.sh
+@@ -2,3 +2,4 @@
+ set -euo pipefail
+ cd "$(dirname "$0")"
+ "${CC:-cc}" -O3 -fPIC -shared -fopenmp -pthread -o libple_gather.so ple_gather.c
++"${CC:-cc}" -O3 -fPIC -shared -o libple_batch_reader.so ple_batch_reader.c
+diff --git a/gb10/build_mapped.py b/gb10/build_mapped.py
+index 4f4ea9563c..f63eea956b 100644
+--- a/gb10/build_mapped.py
++++ b/gb10/build_mapped.py
+@@ -15,6 +15,8 @@ load(name='gb10_mapped_view', sources=[str(root / 'mapped_view.cpp')],
+      extra_ldflags=['-L/usr/local/cuda/lib64', '-lcudart'],
+      build_directory=str(build), is_python_module=False, verbose=True)
+ shutil.copy2(build / 'gb10_mapped_view.so', root / 'gb10_mapped_view.so')
+-subprocess.run(['/usr/local/cuda/bin/nvcc', '-O3', '-std=c++17', '-arch=sm_121',
+-                '-Xcompiler', '-fPIC', '-shared', str(root / 'mapped_wait.cu'),
+-                '-o', str(root / 'libmapped_wait.so')], check=True)
++for source, output in [('mapped_wait.cu', 'libmapped_wait.so'),
++                       ('ple_hash.cu', 'libple_hash_gpu.so')]:
++    subprocess.run(['/usr/local/cuda/bin/nvcc', '-O3', '-std=c++17', '-arch=sm_121',
++                    '-Xcompiler', '-fPIC', '-shared', str(root / source),
++                    '-o', str(root / output)], check=True)
+diff --git a/gb10/mapped_wait.cu b/gb10/mapped_wait.cu
+index b1199af8cb..b725ff1458 100644
+--- a/gb10/mapped_wait.cu
++++ b/gb10/mapped_wait.cu
+@@ -21,8 +21,15 @@ __device__ __forceinline__ uint64_t nanoseconds() {
+ __global__ void wait_ready(uint64_t* flags, uint64_t timeout_ns, bool trap) {
+     uint64_t expected = acquire(flags + 8);
+     uint64_t start = nanoseconds();
++    uint64_t polls = 0;
+     while (acquire(flags) < expected) {
++        ++polls;
+         if (nanoseconds() - start >= timeout_ns) {
++            uint64_t end = nanoseconds();
++            flags[20] = end;
++            flags[22] = acquire(flags + 19);
++            flags[17] = end - start;
++            flags[18] = polls;
+             flags[16] = UINT64_MAX;
+             flags[24] = expected;
+             __threadfence_system();
+@@ -31,6 +38,11 @@ __global__ void wait_ready(uint64_t* flags, uint64_t timeout_ns, bool trap) {
+         }
+         __nanosleep(100);
+     }
++    uint64_t end = nanoseconds();
++    flags[20] = end;
++    flags[22] = acquire(flags + 19);
++    flags[17] = end - start;
++    flags[18] = polls;
+     flags[16] = 0;
+     flags[24] = expected;
+     __threadfence_system();
+diff --git a/vllm/model_executor/layers/ple_offload_layer.py b/vllm/model_executor/layers/ple_offload_layer.py
+index f881de6396..a6ea370964 100644
+--- a/vllm/model_executor/layers/ple_offload_layer.py
++++ b/vllm/model_executor/layers/ple_offload_layer.py
+@@ -18,6 +18,7 @@ WriteValue32(flag=1, copy_stream)       return _gpu_output_buffer[:n]
+ """
+ 
+ import functools
++import os
+ from abc import ABC, abstractmethod
+ from collections.abc import Callable
+ from typing import Any, cast
+@@ -207,6 +208,9 @@ class PleOffloadLayer(nn.Module, ABC):
+         ) -> None:
+             if envs.VLLM_PLE_CPU_OFFLOAD and not is_offload_process():
+                 nn.Module.__init__(self)
++                if os.environ.get("GB10_PLE_IN_PROCESS") == "1":
++                    self._inprocess_constructor = (args, kwargs)
++                    self._inprocess_hash_weights = {}
+                 return
+             original_init(self, *args, **kwargs)
+ 
+diff --git a/vllm/models/qwen4_exp/nvidia/ple_layer.py b/vllm/models/qwen4_exp/nvidia/ple_layer.py
+index 88cd541d53..c27eed1be0 100644
+--- a/vllm/models/qwen4_exp/nvidia/ple_layer.py
++++ b/vllm/models/qwen4_exp/nvidia/ple_layer.py
+@@ -735,6 +735,20 @@ class Qwen4ExpNGramEmbedding(PleOffloadLayer):
+ 
+         if envs.VLLM_PLE_CPU_OFFLOAD and not is_offload_process():
+             retained: set[str] = set()
++            if hasattr(self, "_inprocess_hash_weights"):
++                source_weights = weights
++
++                def retain_hash_weights():
++                    for key, tensor in source_weights:
++                        if key in ("layer_multipliers", "ngram_heads_vocab_sizes",
++                                   "ngram_heads_offsets"):
++                            self._inprocess_hash_weights[key] = tensor.detach().to(
++                                device="cpu", dtype=torch.int64).contiguous()
++                            retained.add(key)
++                        else:
++                            yield key, tensor
++
++                weights = retain_hash_weights()
+             quant_method = getattr(
+                 getattr(self, "ngram_embedding", None), "quant_method", None
+             )
+diff --git a/vllm/v1/worker/gpu/model_runner.py b/vllm/v1/worker/gpu/model_runner.py
+index a9e2857a75..b64f28e6c2 100644
+--- a/vllm/v1/worker/gpu/model_runner.py
++++ b/vllm/v1/worker/gpu/model_runner.py
+@@ -383,7 +383,12 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+             raise RuntimeError("PLE offload requires a query_start_loc source")
+         if not isinstance(ngram_context_source, torch.Tensor):
+             raise RuntimeError("PLE offload requires an ngram_context source")
+-        self._ple_offload_connector = PleOffloadConnector(
++        import os
++        connector_type = PleOffloadConnector
++        if os.environ.get("GB10_PLE_IN_PROCESS") == "1":
++            from vllm.v1.ple_offload.in_process import PleInProcessConnector
++            connector_type = PleInProcessConnector
++        self._ple_offload_connector = connector_type(
+             self.vllm_config,
+             self.model,
+             self.device,
+@@ -1775,12 +1780,24 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+ 
+         # prepare_inputs has finalized MRV2's GPU buffers. Stage D2H on this
+         # stream before the PLE placeholder can wait for CPU output.
++        # Full graph replay is asynchronous: issue PLE reads before launching
++        # independent early layers, then complete them on this same CPU thread.
++        ple_deferred = False
+         if self._ple_offload_connector is not None:
+-            self._ple_offload_connector.prepare_forward(
+-                input_batch.num_reqs,
+-                input_batch.num_tokens_after_padding,
+-                dummy_run,
++            ple_deferred = (
++                not dummy_run
++                and batch_desc.cg_mode == CUDAGraphMode.FULL
++                and getattr(self._ple_offload_connector, "supports_deferred_completion", False)
+             )
++            if ple_deferred:
++                self._ple_offload_connector.prepare_forward(
++                    input_batch.num_reqs, input_batch.num_tokens_after_padding,
++                    dummy_run, defer_completion=True,
++                )
++            else:
++                self._ple_offload_connector.prepare_forward(
++                    input_batch.num_reqs, input_batch.num_tokens_after_padding, dummy_run,
++                )
+ 
+         # Run model.
+         if batch_desc.cg_mode == CUDAGraphMode.FULL:
+@@ -1826,7 +1843,10 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+ 
+         # The model has consumed every PLE output, so the CPU worker may reuse
+         # the registered buffers for the next request.
++        # Finish reads after asynchronous replay and before the consumer fence.
+         if self._ple_offload_connector is not None:
++            if ple_deferred:
++                self._ple_offload_connector.finish_forward()
+             self._ple_offload_connector.release_outputs()
+ 
+         if self.is_last_pp_rank:
+diff --git a/vllm/v1/worker/gpu_worker.py b/vllm/v1/worker/gpu_worker.py
+index 98a4437a52..b522675001 100644
+--- a/vllm/v1/worker/gpu_worker.py
++++ b/vllm/v1/worker/gpu_worker.py
+@@ -335,6 +335,10 @@ class Worker(WorkerBase):
+         ):
+             return
+ 
++        if os.environ.get("GB10_PLE_IN_PROCESS") == "1":
++            logger.info("PLE lookup execution is in this GPU worker process")
++            return
++
+         from vllm.v1.ple_offload.worker import PleOffloadWorker
+ 
+         ipc_addr = self.parallel_config._ple_offload_ipc_path
+diff --git a/gb10/PLE_IN_PROCESS.md b/gb10/PLE_IN_PROCESS.md
+new file mode 100644
+index 0000000000..be5871ceec
+--- /dev/null
++++ b/gb10/PLE_IN_PROCESS.md
+@@ -0,0 +1,79 @@
++# In-process PLE on GB10
++
++`vllm/v1/ple_offload/in_process.py` owns the packed-table reader inside the GPU
++worker. The normal path uses one application caller, without a PLE subprocess
++or per-step ZeroMQ handoff. The current connector requires exactly one PLE layer.
++
++## Runtime configuration
++
++The deployment must provide the mapped transport and verified native libraries
++under `/opt/gb10`. Relevant environment settings are:
++
++| Setting | Behaviour |
++|---|---|
++| `GB10_PLE_IN_PROCESS=1` | Use the in-process connector. |
++| `GB10_PLE_MAPPED_TRANSPORT=1` | Expose host output buffers to the GPU. |
++| `GB10_PLE_GPU_HASH=1` | Compute exact row IDs from CUDA input tensors on the GPU; CPU input retains its native fallback. |
++| `GB10_PLE_ROW_CACHE_MB=1024` | Upper budget for the bounded row cache; accepted range is 0–1024 MiB. |
++| `GB10_PLE_OVERLAP=1` | Allow split submission/completion for real full CUDA graph replay. |
++| `GB10_PLE_SUBMISSION_POLICY=normal` | Default: ordinary nonblocking io_uring issue. |
++| `GB10_PLE_SUBMISSION_POLICY=sqpoll` | Optional kernel submission thread for deferred batches; requires overlap. |
++
++The fixed-policy connector rejects a nonzero `GB10_PLE_ASYNC_AB_STEPS` experiment
++setting. Eager and piecewise execution always gather synchronously. Deferring
++completion there could deadlock the caller before it publishes the result.
++
++SQPOLL creates one additional ring and kernel submission thread per reader only
++when explicitly enabled. It handles the first 4,096 unique misses; additional
++rings retain normal issue. Its polling idle timeout is 10 ms. It does not set
++`IOSQE_ASYNC` on every read. Synchronous gather remains on normal rings under
++both policies.
++
++## Ownership and ordering
++
++The application serializes each native reader. All unique row-cache misses are
++submitted before the first completion wait. Cache hits remain immutable until
++all output copies finish, including when a miss replaces a colliding cache slot.
++
++For full graphs, the caller submits reads, launches independent early GPU work,
++then completes the batch and publishes the ready sequence. Native failures never
++publish ready. A timeout poisons the reader; memory still owned by pending
++kernel reads is retained rather than freed. Optional SQPOLL setup is rejected
++while a batch is pending.
++
++The GPU uses a system-scope acquire when checking readiness. Publication means
++the complete host output is available to the GPU, not that every embedding byte
++is already resident in GPU L2.
++
++The existing hash and wait kernels record bounded timing information in the
++mapped status buffer. Saved hash-start timing survives the following batch's
++hash launch, permitting comparison through the GPU readiness gate without extra
++kernel launches. This metric is not whole-request latency.
++
++## Building and checking
++
++Build native CPU libraries with `gb10/build.sh`. Build mapped transport and CUDA
++hash/wait libraries with `gb10/build_mapped.py` inside the deployment's pinned
++CUDA/Torch image, using a virtual environment with its installed dependencies.
++For example, inside that image:
++
++```bash
++uv venv --offline --system-site-packages /tmp/ple-build-venv
++/tmp/ple-build-venv/bin/python gb10/build_mapped.py
++```
++
++Install newly built artifacts as a new verified deployment bundle; do not
++replace files mounted by running workers in place.
++
++Run the native ownership/byte tests from the source checkout:
++
++```bash
++.venv/bin/python -m pytest --confcutdir=tests/gb10 \
++  tests/gb10/test_ple_batch_reader.py -q
++```
++
++GPU acceptance must exercise both CPU and CUDA input staging, real graph replay,
++repeated buffer reuse, delayed publication, timeout behaviour and exact hash
++results. The deployment repository's PLE latency campaign retains the integration
++checks and frozen configurations for normal and SQPOLL operation. Functional API
++smoke checks are separate from broad model-quality evaluation.
+diff --git a/gb10/ple_batch_reader.c b/gb10/ple_batch_reader.c
+new file mode 100644
+index 0000000000..6c9c09f788
+--- /dev/null
++++ b/gb10/ple_batch_reader.c
+@@ -0,0 +1,220 @@
++// SPDX-License-Identifier: AGPL-3.0-or-later
++// In-process, submit-before-wait exact-byte PLE reader. No mmap dereferences.
++#define _GNU_SOURCE
++#include <errno.h>
++#include <fcntl.h>
++#include <linux/io_uring.h>
++#include <linux/time_types.h>
++#include <stdint.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/mman.h>
++#include <sys/stat.h>
++#include <sys/syscall.h>
++#include <time.h>
++#include <unistd.h>
++
++#define DEPTH 4096U
++struct ring {
++    int fd;
++    void *sq, *cq;
++    size_t sq_size, cq_size, entries_size;
++    struct io_uring_sqe *entries;
++    unsigned *head, *tail, *mask, *array;
++    unsigned *cq_head, *cq_tail, *cq_mask;
++    struct io_uring_cqe *cqes;
++    unsigned pending;
++};
++struct item { int64_t id; uint32_t generation, index; };
++struct reader {
++    int fd, poisoned;
++    int64_t rows, width, capacity;
++    unsigned nrings;
++    struct ring *rings;
++    struct item *items;
++    int64_t *unique_ids, *destinations, *miss_ids;
++    uint8_t *scratch, *cache;
++    int64_t *tags;
++    size_t slots;
++    uint64_t stats[5]; // calls, misses, submitted, first-wait-submitted, hits
++    size_t item_slots;
++    uint32_t generation;
++    uint8_t **sources;
++    int inflight, submit_error;
++    int64_t active_count, active_misses;
++    uint64_t active_submitted, deadline;
++    uint8_t *active_out;
++    struct ring *poll_ring;
++};
++static unsigned acquire(unsigned *p) { return __atomic_load_n(p, __ATOMIC_ACQUIRE); }
++static void release(unsigned *p, unsigned v) { __atomic_store_n(p,v,__ATOMIC_RELEASE); }
++static uint64_t now_ms(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t); return (uint64_t)t.tv_sec*1000+t.tv_nsec/1000000; }
++static void ring_close(struct ring *r) {
++    if (r->entries && r->entries != MAP_FAILED) munmap(r->entries,r->entries_size);
++    if (r->cq && r->cq != MAP_FAILED && r->cq != r->sq) munmap(r->cq,r->cq_size);
++    if (r->sq && r->sq != MAP_FAILED) munmap(r->sq,r->sq_size);
++    if (r->fd>=0) close(r->fd);
++}
++static int ring_open(struct ring *r, int poll_submit) {
++    struct io_uring_params p={0};
++    if(poll_submit){p.flags=IORING_SETUP_SQPOLL;p.sq_thread_idle=10;}
++    r->fd=syscall(__NR_io_uring_setup,DEPTH,&p);
++    if(r->fd<0)return -errno;
++    r->sq_size=p.sq_off.array+p.sq_entries*sizeof(unsigned);
++    r->cq_size=p.cq_off.cqes+p.cq_entries*sizeof(struct io_uring_cqe);
++    if(p.features&IORING_FEAT_SINGLE_MMAP){if(r->cq_size>r->sq_size)r->sq_size=r->cq_size;r->cq_size=r->sq_size;}
++    r->sq=mmap(NULL,r->sq_size,PROT_READ|PROT_WRITE,MAP_SHARED,r->fd,IORING_OFF_SQ_RING);
++    if(r->sq==MAP_FAILED)return -errno;
++    r->cq=(p.features&IORING_FEAT_SINGLE_MMAP)?r->sq:mmap(NULL,r->cq_size,PROT_READ|PROT_WRITE,MAP_SHARED,r->fd,IORING_OFF_CQ_RING);
++    if(r->cq==MAP_FAILED)return -errno;
++    r->entries_size=p.sq_entries*sizeof(struct io_uring_sqe);
++    r->entries=mmap(NULL,r->entries_size,PROT_READ|PROT_WRITE,MAP_SHARED,r->fd,IORING_OFF_SQES);
++    if(r->entries==MAP_FAILED)return -errno;
++    r->head=(unsigned*)((char*)r->sq+p.sq_off.head);r->tail=(unsigned*)((char*)r->sq+p.sq_off.tail);
++    r->mask=(unsigned*)((char*)r->sq+p.sq_off.ring_mask);r->array=(unsigned*)((char*)r->sq+p.sq_off.array);
++    r->cq_head=(unsigned*)((char*)r->cq+p.cq_off.head);r->cq_tail=(unsigned*)((char*)r->cq+p.cq_off.tail);
++    r->cq_mask=(unsigned*)((char*)r->cq+p.cq_off.ring_mask);r->cqes=(void*)((char*)r->cq+p.cq_off.cqes);
++    return 0;
++}
++static size_t slot(struct reader *r,int64_t id){uint64_t x=(uint64_t)id;x^=x>>16;return (x*11400714819323198485ULL)&(r->slots-1);}
++static int reap(struct reader *r,struct ring *q) {
++    int error=0;unsigned h=acquire(q->cq_head),t=acquire(q->cq_tail);
++    while(h!=t){struct io_uring_cqe *c=&q->cqes[h&*q->cq_mask];if(c->res!=r->width)error=c->res<0?c->res:-EIO;if(q->pending)q->pending--;h++;}
++    release(q->cq_head,h);return error;
++}
++// Destruction refuses to free memory still owned by pending kernel reads.
++int gb10_ple_reader_destroy(void *handle) {
++    struct reader *r=handle;if(!r)return 0;
++    for(unsigned i=0;i<r->nrings;i++)if(r->rings[i].pending){reap(r,&r->rings[i]);if(r->rings[i].pending)return -EBUSY;}
++    if(r->poll_ring&&r->poll_ring->pending){reap(r,r->poll_ring);if(r->poll_ring->pending)return -EBUSY;}
++    if(r->poll_ring){ring_close(r->poll_ring);free(r->poll_ring);}
++    for(unsigned i=0;i<r->nrings;i++)ring_close(&r->rings[i]);
++    if(r->fd>=0)close(r->fd);
++    free(r->sources);free(r->rings);free(r->items);free(r->unique_ids);free(r->destinations);free(r->miss_ids);free(r->scratch);free(r->cache);free(r->tags);free(r);return 0;
++}
++void *gb10_ple_reader_create(const char *path,int64_t rows,int64_t width,int64_t capacity,uint64_t cache_bytes,int *error) {
++    *error=-EINVAL;
++    if(!path||rows<1||width<1||width>65536||capacity<1||capacity>1048576||rows>INT64_MAX/width||capacity>INT64_MAX/width)return NULL;
++    struct reader *r=calloc(1,sizeof(*r));if(!r){*error=-ENOMEM;return NULL;}r->fd=-1;
++    r->rows=rows;r->width=width;r->capacity=capacity;
++    r->fd=open(path,O_RDONLY|O_CLOEXEC);if(r->fd<0){*error=-errno;goto fail;}
++    struct stat st;if(fstat(r->fd,&st)||!S_ISREG(st.st_mode)||st.st_size!=rows*width){*error=-EINVAL;goto fail;}
++    r->nrings=(capacity+DEPTH-1)/DEPTH;r->rings=calloc(r->nrings,sizeof(*r->rings));
++    if(!r->rings){r->nrings=0;*error=-ENOMEM;goto fail;}
++    for(unsigned i=0;i<r->nrings;i++)r->rings[i].fd=-1;
++    for(unsigned i=0;i<r->nrings;i++){*error=ring_open(&r->rings[i],0);if(*error)goto fail;}
++    r->item_slots=1;while(r->item_slots<(size_t)capacity*2)r->item_slots*=2;
++    r->items=calloc(r->item_slots,sizeof(*r->items));r->sources=malloc(capacity*sizeof(*r->sources));r->unique_ids=malloc(capacity*sizeof(int64_t));r->destinations=malloc(capacity*sizeof(int64_t));r->miss_ids=malloc(capacity*sizeof(int64_t));r->scratch=malloc(capacity*width);
++    if(!r->sources||!r->items||!r->unique_ids||!r->destinations||!r->miss_ids||!r->scratch){*error=-ENOMEM;goto fail;}
++    size_t maxslots=cache_bytes/(width+sizeof(int64_t));
++    if(maxslots){r->slots=1;while(r->slots<=maxslots/2)r->slots*=2;r->cache=malloc(r->slots*width);r->tags=malloc(r->slots*sizeof(int64_t));if(!r->cache||!r->tags){*error=-ENOMEM;goto fail;}memset(r->tags,0xff,r->slots*sizeof(int64_t));}
++    *error=0;return r;
++fail:gb10_ple_reader_destroy(r);return NULL;
++}
++// Optional setup is explicit and never occurs in the submission hot path.
++int gb10_ple_reader_enable_sqpoll(void *handle) {
++    struct reader *r=handle;
++    if(!r)return -EINVAL;
++    if(r->poisoned)return -EIO;
++    if(r->inflight)return -EBUSY;
++    if(r->poll_ring)return 0;
++    struct ring *q=calloc(1,sizeof(*q));if(!q)return -ENOMEM;
++    q->fd=-1;int error=ring_open(q,1);
++    if(error){ring_close(q);free(q);return error;}
++    r->poll_ring=q;return 0;
++}
++// Caller serializes this handle. All unique cache misses are submitted before
++// polling/reaping the first completion. Kernel I/O workers may run concurrently.
++static int submit_batch(void *handle,const int64_t *ids,int64_t count,uint8_t *out,unsigned timeout_ms,unsigned use_poll) {
++    struct reader *r=handle;if(!r||!ids||!out||count<0||count>r->capacity||!timeout_ms)return -EINVAL;
++    if(r->poisoned)return -EIO;
++    if(r->inflight)return -EBUSY;
++    if(use_poll&&!r->poll_ring)return -EOPNOTSUPP;
++    for(int64_t i=0;i<count;i++)if(ids[i]<0||ids[i]>=r->rows)return -ERANGE;
++    if(++r->generation==0){memset(r->items,0,r->item_slots*sizeof(*r->items));r->generation=1;}
++    int64_t n=0,misses=0,hits=0;
++    for(int64_t i=0;i<count;i++){
++        int64_t id=ids[i];uint64_t hash=(uint64_t)id;hash^=hash>>16;hash*=11400714819323198485ULL;
++        size_t k=hash&(r->item_slots-1);
++        while(r->items[k].generation==r->generation&&r->items[k].id!=id)k=(k+1)&(r->item_slots-1);
++        if(r->items[k].generation!=r->generation){
++            r->items[k]=(struct item){id,r->generation,(uint32_t)n};
++            r->unique_ids[n]=id;
++            size_t cache_slot=r->slots?hash&(r->slots-1):0;
++            if(r->slots&&r->tags[cache_slot]==id){
++                // Cache entries remain immutable until every output is copied.
++                r->sources[n]=r->cache+cache_slot*r->width;hits++;
++            }else{
++                r->sources[n]=r->scratch+n*r->width;r->miss_ids[misses++]=n;
++            }
++            n++;
++        }
++        r->destinations[i]=r->items[k].index;
++    }
++    int failure=0;uint64_t submitted=0;
++    // The normal io_uring issue path first tries a nonblocking read inline.
++    // Do not force IOSQE_ASYNC: that schedules a kernel worker even for hot
++    // page-cache reads. Reads that would block are deferred by io_uring.
++    // Fill each bounded ring, then submit it. Never reap until all rings submit.
++    for(int64_t base=0;base<misses;base+=DEPTH){
++        struct ring *q=(use_poll&&base==0)?r->poll_ring:&r->rings[base/DEPTH];unsigned total=misses-base<DEPTH?misses-base:DEPTH;
++        unsigned tail=acquire(q->tail);
++        for(unsigned j=0;j<total;j++){
++            unsigned ix=(tail+j)&*q->mask;int64_t dest=r->miss_ids[base+j];
++            struct io_uring_sqe *e=&q->entries[ix];memset(e,0,sizeof(*e));e->opcode=IORING_OP_READ;e->flags=0;e->fd=r->fd;e->off=r->unique_ids[dest]*r->width;e->addr=(uint64_t)(r->scratch+dest*r->width);e->len=r->width;e->user_data=dest;q->array[ix]=ix;
++        }
++        release(q->tail,tail+total);
++        unsigned remaining=total;
++        while(remaining){int rc=syscall(__NR_io_uring_enter,q->fd,remaining,0,q==r->poll_ring?IORING_ENTER_SQ_WAKEUP:0,NULL,0);if(rc<0&&errno==EINTR)continue;if(rc<=0){failure=rc<0?-errno:-EIO;goto drain;}q->pending+=rc;submitted+=rc;remaining-=rc;}
++    }
++drain:
++    r->stats[0]++;r->stats[1]+=misses;r->stats[2]=submitted;r->stats[3]=submitted;r->stats[4]+=hits;
++    r->inflight=1;r->submit_error=failure;r->active_count=count;
++    r->active_misses=misses;r->active_submitted=submitted;r->active_out=out;
++    r->deadline=now_ms()+timeout_ms;
++    if(failure)r->poisoned=1;
++    return failure;
++}
++int gb10_ple_reader_submit(void *handle,const int64_t *ids,int64_t count,uint8_t *out,unsigned timeout_ms) {
++    return submit_batch(handle,ids,count,out,timeout_ms,0);
++}
++int gb10_ple_reader_submit_sqpoll(void *handle,const int64_t *ids,int64_t count,uint8_t *out,unsigned timeout_ms) {
++    return submit_batch(handle,ids,count,out,timeout_ms,1);
++}
++// Same caller completes the batch after it has launched independent GPU work.
++int gb10_ple_reader_complete(void *handle) {
++    struct reader *r=handle;
++    if(!r||!r->inflight)return -EINVAL;
++    int failure=r->submit_error;
++    int64_t count=r->active_count,misses=r->active_misses;
++    uint64_t submitted=r->active_submitted,deadline=r->deadline;
++    uint8_t *out=r->active_out;
++    for(unsigned i=0;i<r->nrings+(r->poll_ring!=NULL);i++){
++        struct ring *q=i==r->nrings?r->poll_ring:&r->rings[i];
++        while(q->pending){
++            int err=reap(r,q);if(err)failure=err;if(!q->pending)break;
++            uint64_t now=now_ms();
++            if(now>=deadline){r->poisoned=1;return -ETIMEDOUT;}
++            uint64_t remaining=deadline-now;
++            struct __kernel_timespec ts={.tv_sec=remaining/1000,.tv_nsec=(remaining%1000)*1000000};
++            struct io_uring_getevents_arg arg={.ts=(uint64_t)&ts};
++            // All reads are already submitted. Sleep for the remaining batch,
++            // not one poll wakeup per arriving completion.
++            int rc=syscall(__NR_io_uring_enter,q->fd,0,q->pending,
++                           IORING_ENTER_GETEVENTS|IORING_ENTER_EXT_ARG,&arg,sizeof(arg));
++            if(rc<0&&errno!=EINTR){r->poisoned=1;return errno==ETIME?-ETIMEDOUT:-errno;}
++        }
++    }
++    r->inflight=0;
++    if(failure){r->poisoned=1;return failure;}
++    if(submitted!=(uint64_t)misses){r->poisoned=1;return -EIO;}
++    // Commit output only after every completion has succeeded.
++    for(int64_t i=0;i<count;i++)memcpy(out+i*r->width,r->sources[r->destinations[i]],r->width);
++    if(r->slots)for(int64_t j=0;j<misses;j++){int64_t i=r->miss_ids[j];size_t k=slot(r,r->unique_ids[i]);memcpy(r->cache+k*r->width,r->scratch+i*r->width,r->width);r->tags[k]=r->unique_ids[i];}
++    return 0;
++}
++int gb10_ple_reader_gather(void *handle,const int64_t *ids,int64_t count,uint8_t *out,unsigned timeout_ms) {
++    int rc=gb10_ple_reader_submit(handle,ids,count,out,timeout_ms);
++    return rc?rc:gb10_ple_reader_complete(handle);
++}
++int gb10_ple_reader_stats(void *handle,uint64_t *out){if(!handle||!out)return -EINVAL;memcpy(out,((struct reader*)handle)->stats,5*sizeof(uint64_t));return 0;}
+diff --git a/gb10/ple_hash.cu b/gb10/ple_hash.cu
+new file mode 100644
+index 0000000000..b979ae1374
+--- /dev/null
++++ b/gb10/ple_hash.cu
+@@ -0,0 +1,95 @@
++// SPDX-License-Identifier: Apache-2.0
++// Exact PLE row IDs directly from runner GPU inputs into mapped host storage.
++#include <cuda_runtime.h>
++#include <stdint.h>
++
++__device__ int64_t context(const int32_t *tokens, const int32_t *history,
++                          int64_t start, int64_t length, int64_t column,
++                          int64_t ngram, int64_t eos) {
++    if(column<0)return history[column+ngram-1];
++    if(column>=length)return eos;
++    int64_t token=tokens[start+column];
++    return token<0?0:token;
++}
++__global__ void hash_ids(const int32_t *tokens,int64_t count,
++                        const int32_t *query,int64_t requests,
++                        const int32_t *history,int64_t history_stride,
++                        int64_t ngram,int64_t heads,int64_t eos,
++                        const int64_t *multipliers,const int64_t *sizes,
++                        const int64_t *offsets,int64_t *out,int32_t *error,uint64_t *timing) {
++    if(timing&&blockIdx.x==0&&threadIdx.x==0){
++        uint64_t now;asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(now));timing[19]=now;
++    }
++    __shared__ int valid;
++    __shared__ int64_t max_length;
++    int64_t total_heads=(ngram-1)*heads;
++    if(threadIdx.x==0){
++        valid=query[0]==0&&query[requests]>0&&query[requests]<=count;
++        max_length=1;
++        for(int64_t r=0;r<requests;r++){
++            int64_t length=(int64_t)query[r+1]-query[r];
++            if(length<0)valid=0;
++            if(length>max_length)max_length=length;
++        }
++        for(int64_t h=0;h<total_heads;h++)
++            if(sizes[h]<=0||offsets[h]<0||offsets[h]>INT64_MAX-sizes[h])valid=0;
++        if(!valid)atomicExch(error,-1);
++    }
++    __syncthreads();
++    if(!valid)return;
++    int64_t r=blockIdx.x,start=query[r],length=(int64_t)query[r+1]-start;
++    int64_t end=r+1==requests?count:query[r+1];
++    const int32_t *hist=history+r*history_stride;
++    for(int64_t i=threadIdx.x;i<(end-start)*total_heads;i+=blockDim.x){
++        int64_t pos=start+i/total_heads,index=i%total_heads;
++        int64_t column=pos-start;if(column>=max_length)column=max_length-1;
++        int64_t token=context(tokens,hist,start,length,column,ngram,eos);
++        uint64_t mixed=(uint64_t)token*(uint64_t)multipliers[0];
++        int reset=0;
++        for(int64_t shift=1;shift<=index/heads+1;shift++){
++            int64_t previous=context(tokens,hist,start,length,column-shift,ngram,eos);
++            if(previous==eos)reset=1;
++            if(reset)previous=eos;
++            mixed^=(uint64_t)previous*(uint64_t)multipliers[shift];
++        }
++        int64_t rem=(int64_t)mixed%sizes[index];
++        if(rem<0)rem+=sizes[index];
++        out[pos*total_heads+index]=rem+offsets[index];
++    }
++}
++static int launch_hash(const int32_t *tokens,int64_t count,
++                               const int32_t *query,int64_t requests,
++                               const int32_t *history,int64_t history_stride,
++                               int64_t ngram,int64_t heads,int64_t eos,
++                               const int64_t *multipliers,const int64_t *sizes,
++                               const int64_t *offsets,int64_t *out,
++                               int32_t *error,void *stream,uint64_t *timing) {
++    if(!tokens||!query||!history||!multipliers||!sizes||!offsets||!out||!error||
++       count<1||requests<1||requests>count||requests>65535||
++       ngram<2||ngram>8||heads<1||heads>128||history_stride<ngram-1)return -1;
++    hash_ids<<<(unsigned)requests,256,0,(cudaStream_t)stream>>>(
++        tokens,count,query,requests,history,history_stride,ngram,heads,eos,
++        multipliers,sizes,offsets,out,error,timing);
++    return (int)cudaGetLastError();
++}
++
++extern "C" int gb10_ple_hash_gpu(const int32_t *tokens,int64_t count,
++                               const int32_t *query,int64_t requests,
++                               const int32_t *history,int64_t history_stride,
++                               int64_t ngram,int64_t heads,int64_t eos,
++                               const int64_t *multipliers,const int64_t *sizes,
++                               const int64_t *offsets,int64_t *out,
++                               int32_t *error,void *stream) {
++    return launch_hash(tokens,count,query,requests,history,history_stride,ngram,heads,eos,multipliers,sizes,offsets,out,error,stream,nullptr);
++}
++
++extern "C" int gb10_ple_hash_gpu_timed(const int32_t *tokens,int64_t count,
++                               const int32_t *query,int64_t requests,
++                               const int32_t *history,int64_t history_stride,
++                               int64_t ngram,int64_t heads,int64_t eos,
++                               const int64_t *multipliers,const int64_t *sizes,
++                               const int64_t *offsets,int64_t *out,
++                               int32_t *error,void *stream,uint64_t *timing) {
++    if(!timing)return -1;
++    return launch_hash(tokens,count,query,requests,history,history_stride,ngram,heads,eos,multipliers,sizes,offsets,out,error,stream,timing);
++}
+diff --git a/tests/gb10/test_ple_batch_reader.py b/tests/gb10/test_ple_batch_reader.py
+new file mode 100644
+index 0000000000..86f04e7397
+--- /dev/null
++++ b/tests/gb10/test_ple_batch_reader.py
+@@ -0,0 +1,200 @@
++"""Exact rows and submission ordering for the standalone in-process reader.
++
++No GPU/model import: compile the native API against temporary file-backed rows.
++Failures must not publish partial output, and kernel buffers outlive timed-out I/O.
++"""
++
++import ctypes
++import errno
++import os
++import random
++import subprocess
++from pathlib import Path
++
++import pytest
++
++
++@pytest.fixture(scope="module")
++def native(tmp_path_factory):
++    out = tmp_path_factory.mktemp("ple-batch") / "reader.so"
++    source = Path(__file__).resolve().parents[2] / "gb10/ple_batch_reader.c"
++    subprocess.run(
++        [
++            "cc",
++            "-O2",
++            "-Wall",
++            "-Wextra",
++            "-Werror",
++            "-shared",
++            "-fPIC",
++            str(source),
++            "-o",
++            str(out),
++        ],
++        check=True,
++    )
++    lib = ctypes.CDLL(str(out))
++    v, i, u = ctypes.c_void_p, ctypes.c_int64, ctypes.c_uint64
++    lib.gb10_ple_reader_create.argtypes = [
++        ctypes.c_char_p,
++        i,
++        i,
++        i,
++        u,
++        ctypes.POINTER(ctypes.c_int),
++    ]
++    lib.gb10_ple_reader_create.restype = v
++    lib.gb10_ple_reader_gather.argtypes = [v, v, i, v, ctypes.c_uint]
++    lib.gb10_ple_reader_gather.restype = ctypes.c_int
++    lib.gb10_ple_reader_submit.argtypes = lib.gb10_ple_reader_gather.argtypes
++    lib.gb10_ple_reader_submit.restype = ctypes.c_int
++    lib.gb10_ple_reader_complete.argtypes = [v]
++    lib.gb10_ple_reader_complete.restype = ctypes.c_int
++    lib.gb10_ple_reader_destroy.argtypes = [v]
++    lib.gb10_ple_reader_stats.argtypes = [v, v]
++    return lib
++
++
++def create(native, path, rows, width, capacity, cache=0):
++    error = ctypes.c_int()
++    handle = native.gb10_ple_reader_create(
++        os.fsencode(path), rows, width, capacity, cache, ctypes.byref(error)
++    )
++    if not handle and -error.value in (errno.EPERM, errno.ENOSYS):
++        pytest.skip("io_uring blocked/unavailable in this environment")
++    assert handle, error.value
++    return handle
++
++
++@pytest.mark.parametrize("cache", [0, 1024 * 1024])
++def test_all_reads_submitted_before_wait_and_exact_duplicate_rows(
++    native, tmp_path, cache
++):
++    data = random.Random(91).randbytes(12000 * 160)
++    path = tmp_path / "table"
++    path.write_bytes(data)
++    handle = create(native, path, 12000, 160, 10000, cache)
++    try:
++        # 9000 distinct misses span three rings; 160-byte rows straddle pages.
++        ids = list(range(9000)) + [25, 25, 8999, 0]
++        random.Random(12).shuffle(ids)
++        array = (ctypes.c_int64 * len(ids))(*ids)
++        out = ctypes.create_string_buffer(len(ids) * 160)
++        for _ in range(2):
++            assert (
++                native.gb10_ple_reader_gather(handle, array, len(ids), out, 10000) == 0
++            )
++            assert out.raw == b"".join(data[i * 160 : (i + 1) * 160] for i in ids)
++            stats = (ctypes.c_uint64 * 5)()
++            native.gb10_ple_reader_stats(handle, stats)
++            assert stats[2] == stats[3]  # total submitted == at first wait
++        # Invalid bounds must leave output completely untouched.
++        bad = (ctypes.c_int64 * 2)(0, 12000)
++        out = ctypes.create_string_buffer(b"X" * 320)
++        assert native.gb10_ple_reader_gather(handle, bad, 2, out, 1000) == -errno.ERANGE
++        assert out.raw[:320] == b"X" * 320
++    finally:
++        assert native.gb10_ple_reader_destroy(handle) == 0
++
++
++@pytest.mark.parametrize("split", [False, True])
++def test_short_read_never_commits_partial_output(native, tmp_path, split):
++    path = tmp_path / "table"
++    path.write_bytes(b"a" * 160 * 64)
++    handle = create(native, path, 64, 160, 64)
++    try:
++        path.write_bytes(b"a" * 160)
++        ids = (ctypes.c_int64 * 2)(0, 63)
++        out = ctypes.create_string_buffer(b"X" * 320)
++        if split:
++            assert native.gb10_ple_reader_submit(handle, ids, 2, out, 1000) == 0
++            assert native.gb10_ple_reader_complete(handle) == -errno.EIO
++        else:
++            assert (
++                native.gb10_ple_reader_gather(handle, ids, 2, out, 1000) == -errno.EIO
++            )
++        assert out.raw[:320] == b"X" * 320
++        assert native.gb10_ple_reader_gather(handle, ids, 2, out, 1000) == -errno.EIO
++    finally:
++        assert native.gb10_ple_reader_destroy(handle) == 0
++
++
++def test_cache_collision_does_not_overwrite_hits_before_output(native, tmp_path):
++    """A miss replacing a cache slot must not corrupt a hit in the same batch."""
++    data = random.Random(29).randbytes(64 * 160)
++    path = tmp_path / "table"
++    path.write_bytes(data)
++    # Two direct-mapped slots: even row IDs collide, as do odd IDs.
++    handle = create(native, path, 64, 160, 16, cache=2 * (160 + 8))
++    try:
++        for row_ids in ([0, 1], [2, 0, 2, 1, 3, 1], [3], [0, 3, 0, 2], [0, 1]):
++            ids = (ctypes.c_int64 * len(row_ids))(*row_ids)
++            out = ctypes.create_string_buffer(len(row_ids) * 160)
++            assert (
++                native.gb10_ple_reader_gather(handle, ids, len(row_ids), out, 1000) == 0
++            )
++            assert out.raw == b"".join(data[i * 160 : (i + 1) * 160] for i in row_ids)
++    finally:
++        assert native.gb10_ple_reader_destroy(handle) == 0
++
++
++def test_deferred_batch_is_not_overwritten_by_another_submission(native, tmp_path):
++    """Submitting GPU-independent reads must retain state until explicit completion."""
++    data = random.Random(33).randbytes(64 * 160)
++    path = tmp_path / "table"
++    path.write_bytes(data)
++    handle = create(native, path, 64, 160, 16, cache=2 * (160 + 8))
++    try:
++        for rows in ([0, 1], [2, 0, 2, 1, 3, 1], [3], [0, 3, 0, 2]):
++            ids = (ctypes.c_int64 * len(rows))(*rows)
++            out = ctypes.create_string_buffer(b"X" * (len(rows) * 160))
++            assert native.gb10_ple_reader_submit(handle, ids, len(rows), out, 1000) == 0
++            assert out.raw[:-1] == b"X" * (len(rows) * 160)
++            other = (ctypes.c_int64 * 1)(63)
++            assert (
++                native.gb10_ple_reader_submit(handle, other, 1, out, 1000)
++                == -errno.EBUSY
++            )
++            assert (
++                native.gb10_ple_reader_gather(handle, other, 1, out, 1000)
++                == -errno.EBUSY
++            )
++            assert native.gb10_ple_reader_complete(handle) == 0
++            assert out.raw[:-1] == b"".join(data[i * 160 : (i + 1) * 160] for i in rows)
++            assert native.gb10_ple_reader_complete(handle) == -errno.EINVAL
++    finally:
++        assert native.gb10_ple_reader_destroy(handle) == 0
++
++
++def test_sqpoll_setup_is_optional_and_rejects_pending_batches(native, tmp_path):
++    """Switching I/O setup must not change buffers owned by a pending batch."""
++    if not hasattr(native, "gb10_ple_reader_enable_sqpoll"):
++        pytest.skip("Reader predates optional SQPOLL submission")
++    enable = native.gb10_ple_reader_enable_sqpoll
++    enable.argtypes = [ctypes.c_void_p]
++    enable.restype = ctypes.c_int
++    submit = native.gb10_ple_reader_submit_sqpoll
++    submit.argtypes = native.gb10_ple_reader_gather.argtypes
++    submit.restype = ctypes.c_int
++    data = random.Random(71).randbytes(2 * 160)
++    path = tmp_path / "optional-sqpoll-table"
++    path.write_bytes(data)
++    handle = create(native, path, 2, 160, 2)
++    ids = (ctypes.c_int64 * 2)(0, 1)
++    out = ctypes.create_string_buffer(b"X" * len(data), len(data))
++    try:
++        assert submit(handle, ids, 2, out, 1000) == -errno.EOPNOTSUPP
++        assert out.raw == b"X" * len(data)
++        assert native.gb10_ple_reader_submit(handle, ids, 2, out, 1000) == 0
++        assert enable(handle) == -errno.EBUSY
++        assert native.gb10_ple_reader_complete(handle) == 0
++        assert out.raw == data
++        assert enable(handle) == 0
++        assert enable(handle) == 0
++        assert submit(handle, ids, 2, out, 1000) == 0
++        assert enable(handle) == -errno.EBUSY
++        assert native.gb10_ple_reader_submit(handle, ids, 2, out, 1000) == -errno.EBUSY
++        assert native.gb10_ple_reader_complete(handle) == 0
++        assert out.raw == data
++    finally:
++        assert native.gb10_ple_reader_destroy(handle) == 0
+diff --git a/vllm/v1/ple_offload/in_process.py b/vllm/v1/ple_offload/in_process.py
+new file mode 100644
+index 0000000000..db33077e15
+--- /dev/null
++++ b/vllm/v1/ple_offload/in_process.py
+@@ -0,0 +1,481 @@
++# SPDX-License-Identifier: Apache-2.0
++"""Node-local PLE in the GPU worker: one caller, batch reads, no IPC worker."""
++
++import ctypes
++import inspect
++import json
++import os
++from pathlib import Path
++
++import torch
++
++from vllm.model_executor.layers.ple_offload_layer import (
++    CpuGpuSemaphore,
++    PleOffloadLayer,
++)
++from vllm.v1.ple_offload.connector import PleOffloadConnector
++from vllm.v1.ple_offload.gb10_mapped import (
++    map_shared_tensor,
++    publish_done,
++    publish_expected,
++)
++from vllm.v1.ple_offload.protocol import PleOffloadRequest
++
++# A timed-out kernel read may still own native scratch space. Retain its handle
++# until process exit if it cannot be reaped at close; never free a live target.
++_pending_readers = []
++
++
++class BatchReader:
++    def __init__(
++        self, path, rows, width, capacity, cache_bytes, submission_policy="normal"
++    ):
++        if submission_policy not in ("normal", "sqpoll"):
++            raise ValueError("PLE submission policy must be normal or sqpoll")
++        self._profile = os.environ.get("QWEN_NSYS_CAPTURE") == "1"
++        self.lib = ctypes.CDLL("/opt/gb10/libple_batch_reader.so")
++        v, i, u = ctypes.c_void_p, ctypes.c_int64, ctypes.c_uint64
++        self.lib.gb10_ple_reader_create.argtypes = [
++            ctypes.c_char_p,
++            i,
++            i,
++            i,
++            u,
++            ctypes.POINTER(ctypes.c_int),
++        ]
++        self.lib.gb10_ple_reader_create.restype = v
++        self.lib.gb10_ple_reader_gather.argtypes = [v, v, i, v, ctypes.c_uint]
++        self.lib.gb10_ple_reader_gather.restype = ctypes.c_int
++        self.lib.gb10_ple_reader_destroy.argtypes = [v]
++        self.lib.gb10_ple_reader_destroy.restype = ctypes.c_int
++        self.can_defer = hasattr(self.lib, "gb10_ple_reader_submit")
++        if self.can_defer:
++            self.lib.gb10_ple_reader_submit.argtypes = (
++                self.lib.gb10_ple_reader_gather.argtypes
++            )
++            self.lib.gb10_ple_reader_submit.restype = ctypes.c_int
++            self.lib.gb10_ple_reader_complete.argtypes = [v]
++            self.lib.gb10_ple_reader_complete.restype = ctypes.c_int
++        self._submit = self.lib.gb10_ple_reader_submit if self.can_defer else None
++        if submission_policy == "sqpoll":
++            self.lib.gb10_ple_reader_enable_sqpoll.argtypes = [v]
++            self.lib.gb10_ple_reader_enable_sqpoll.restype = ctypes.c_int
++            self._submit = self.lib.gb10_ple_reader_submit_sqpoll
++            self._submit.argtypes = self.lib.gb10_ple_reader_gather.argtypes
++            self._submit.restype = ctypes.c_int
++        error = ctypes.c_int()
++        self.handle = self.lib.gb10_ple_reader_create(
++            os.fsencode(path), rows, width, capacity, cache_bytes, ctypes.byref(error)
++        )
++        if not self.handle:
++            raise OSError(
++                -error.value,
++                "PLE async reader initialization failed; "
++                "check io_uring permissions and memory limits",
++            )
++        if submission_policy == "sqpoll":
++            code = self.lib.gb10_ple_reader_enable_sqpoll(self.handle)
++            if code:
++                self.close()
++                raise OSError(-code, "PLE SQPOLL initialization failed")
++
++    def gather(self, ids, output, timeout_ms):
++        if self._profile:
++            with torch.cuda.nvtx.range("ple_in_process.gather"):
++                return self._gather(ids, output, timeout_ms)
++        return self._gather(ids, output, timeout_ms)
++
++    def _gather(self, ids, output, timeout_ms):
++        code = self.lib.gb10_ple_reader_gather(
++            self.handle, ids.data_ptr(), ids.numel(), output.data_ptr(), timeout_ms
++        )
++        if code:
++            raise OSError(-code, "PLE batch read failed; output not published")
++
++    def submit(self, ids, output, timeout_ms):
++        if not self.can_defer:
++            raise RuntimeError("Native PLE reader does not support deferred completion")
++        code = self._submit(
++            self.handle, ids.data_ptr(), ids.numel(), output.data_ptr(), timeout_ms
++        )
++        if code:
++            raise OSError(-code, "PLE read submission failed")
++
++    def complete(self):
++        code = self.lib.gb10_ple_reader_complete(self.handle)
++        if code:
++            raise OSError(-code, "PLE read completion failed; output not published")
++
++    def close(self):
++        if self.handle:
++            code = self.lib.gb10_ple_reader_destroy(self.handle)
++            if code:
++                _pending_readers.append((self.lib, self.handle))
++            self.handle = None
++
++
++class PleInProcessConnector(PleOffloadConnector):
++    """Reuse input staging and consumption fences, never construct IPC transport."""
++
++    def __init__(
++        self,
++        vllm_config,
++        model,
++        device,
++        ipc_addr,
++        *,
++        input_ids_source,
++        query_start_loc_source,
++        ngram_context_source,
++    ):
++        del ipc_addr
++        pc = vllm_config.parallel_config
++        if (
++            os.environ.get("GB10_PLE_MAPPED_TRANSPORT") != "1"
++            or os.environ.get("VLLM_PLE_LOCAL_TP") != "1"
++            or pc.nnodes != 2
++            or pc.tensor_parallel_size != 2
++            or pc.data_parallel_size != 1
++        ):
++            raise ValueError("In-process PLE requires mapped node-local TP2/DP1")
++        self.device = device
++        self._profile = os.environ.get("QWEN_NSYS_CAPTURE") == "1"
++        self._gb10_mapped = True
++        self._gb10_event_recorded = False
++        self._gb10_consumed_event = torch.cuda.Event()
++        self._seq = 0
++        self._pending_seq = None
++        self.supports_deferred_completion = os.environ.get("GB10_PLE_OVERLAP") == "1"
++        self._submission_policy = os.environ.get("GB10_PLE_SUBMISSION_POLICY", "normal")
++        if self._submission_policy not in ("normal", "sqpoll"):
++            raise ValueError("PLE submission policy must be normal or sqpoll")
++        if (
++            self._submission_policy == "sqpoll"
++            and not self.supports_deferred_completion
++        ):
++            raise ValueError("PLE SQPOLL requires deferred graph overlap")
++        if int(os.environ.get("GB10_PLE_ASYNC_AB_STEPS", "0")):
++            raise ValueError(
++                "Fixed PLE policy cannot enable experimental A/B switching"
++            )
++        self._closed = False
++        self._readers = []
++        self._owners = []
++        self._hash_state = []
++        self._pinned_input_buffers = []
++        self._layers = {
++            name: layer
++            for name, layer in model.named_modules()
++            if isinstance(layer, PleOffloadLayer)
++        }
++        if len(self._layers) != 1:
++            raise ValueError(
++                "In-process batch reader currently requires exactly one PLE layer"
++            )
++        cfg = vllm_config.scheduler_config
++        cache_mb = int(os.environ.get("GB10_PLE_ROW_CACHE_MB", "0"))
++        if not 0 <= cache_mb <= 1024:
++            raise ValueError("PLE row-cache budget must be between 0 and 1024 MiB")
++        self._input_ids_source = input_ids_source
++        self._query_start_loc_source = query_start_loc_source
++        self._ngram_context_source = ngram_context_source
++        self._uses_cuda_inputs = input_ids_source.is_cuda
++        self._input_ids_buf = torch.empty(
++            cfg.max_num_batched_tokens, dtype=torch.int32, device="cpu"
++        ).share_memory_()
++        self._query_start_loc_buf = torch.empty(
++            cfg.max_num_seqs + 1, dtype=torch.int32, device="cpu"
++        ).share_memory_()
++        ngram = int(vllm_config.model_config.hf_text_config.ngram_size)
++        self._ngram_context_buf = torch.empty(
++            (cfg.max_num_seqs, ngram - 1), dtype=torch.int32, device="cpu"
++        ).share_memory_()
++        self._validate_input_sources()
++        self._done_flag = torch.zeros(
++            32, dtype=torch.int64, device="cpu"
++        ).share_memory_()
++        self._d2h_stream = self._input_ready_event = self._d2h_done_event = None
++        self._timeout_ms = int(
++            float(os.environ.get("VLLM_PLE_OFFLOAD_STEP_TIMEOUT", "30")) * 1000
++        )
++        if not 0 < self._timeout_ms <= 3600000:
++            raise ValueError("PLE timeout must be in (0, 3600] seconds")
++        native = ctypes.CDLL("/opt/gb10/libple_gather.so")
++        self._native = native
++        self._hash = native.gb10_ple_hash
++        v, i = ctypes.c_void_p, ctypes.c_int64
++        self._hash.argtypes = [v, i, v, i, v, i, i, i, i, v, v, v, v]
++        self._hash.restype = ctypes.c_int
++        self._gpu_hash = None
++        self._gpu_hash_states = []
++        if os.environ.get("GB10_PLE_GPU_HASH") == "1" and self._uses_cuda_inputs:
++            if any(
++                source.stride(-1) != 1
++                for source in (
++                    input_ids_source,
++                    query_start_loc_source,
++                    ngram_context_source,
++                )
++            ):
++                raise ValueError("GPU PLE hash requires contiguous input columns")
++            self._gpu_hash_lib = ctypes.CDLL("/opt/gb10/libple_hash_gpu.so")
++            self._gpu_hash = self._gpu_hash_lib.gb10_ple_hash_gpu_timed
++            self._gpu_hash.argtypes = self._hash.argtypes + [v, v, v]
++            self._gpu_hash.restype = ctypes.c_int
++            self._gpu_hash_event = torch.cuda.Event()
++        try:
++            self._pin_input_buffers()
++            if self._uses_cuda_inputs:
++                self._d2h_stream = torch.cuda.Stream(device=device)
++                self._input_ready_event = torch.cuda.Event()
++                self._d2h_done_event = torch.cuda.Event()
++            mapped_flag = map_shared_tensor(self._done_flag, device)
++            self._gpu_gate_flag = mapped_flag
++            for name, layer in self._layers.items():
++                args, kwargs = layer._inprocess_constructor
++                bound = inspect.signature(type(layer).__init__).bind(
++                    layer, *args, **kwargs
++                )
++                bound.apply_defaults()
++                spec = bound.arguments
++                config = spec["config"]
++                heads = int(config.heads_per_ngram)
++                count = (ngram - 1) * heads
++                if ngram < 2 or ngram > 8 or not 1 <= heads <= 128:
++                    raise ValueError("Unsupported native PLE hash dimensions")
++                width = int(spec["embedding_dim"]) // count
++                if width * count != int(spec["embedding_dim"]):
++                    raise ValueError("Invalid PLE embedding width")
++                dtype = layer.get_offload_output_dtype(vllm_config.model_config.dtype)
++                if dtype != torch.float8_e4m3fn:
++                    raise ValueError(
++                        "In-process PLE currently supports packed FP8 rows only"
++                    )
++                dense_id = spec["ple_dense_layer_id"]
++                multipliers = type(layer)._make_layer_multipliers(
++                    ngram_size=ngram,
++                    unigram_vocab_size=int(config.vocab_size),
++                    seed=int(getattr(config, "seed", 1234)),
++                    ple_dense_layer_id=dense_id,
++                )
++                sizes, offsets, rows = type(layer)._make_vocab_layout(
++                    ngram_vocab_size_base=int(config.ngram_vocab_size_base),
++                    ngram_heads=count,
++                    ple_dense_layer_id=dense_id,
++                )
++                divisor = int(config.make_ngram_vocab_size_divisible_by)
++                rows = ((rows + divisor - 1) // divisor) * divisor
++                saved = getattr(layer, "_inprocess_hash_weights", {})
++                values = []
++                for key, value in [
++                    ("layer_multipliers", multipliers),
++                    ("ngram_heads_vocab_sizes", sizes),
++                    ("ngram_heads_offsets", offsets),
++                ]:
++                    tensor = (
++                        saved.get(
++                            key, torch.tensor(value, dtype=torch.int64, device="cpu")
++                        )
++                        .to(device="cpu", dtype=torch.int64)
++                        .contiguous()
++                    )
++                    if tensor.ndim != 1 or tensor.numel() != len(value):
++                        raise ValueError(f"Invalid PLE checkpoint hash buffer: {key}")
++                    values.append(tensor)
++                if (
++                    torch.any(values[1] <= 0)
++                    or torch.any(values[2] < 0)
++                    or torch.any(values[1] > rows - values[2])
++                ):
++                    raise ValueError("PLE checkpoint layout exceeds table")
++                path = Path(os.environ["VLLM_PLE_PACKED_TABLE_DIR"]) / (
++                    name + ".ngram_embedding.packed_u8"
++                )
++                meta = json.loads(Path(str(path) + ".json").read_text())
++                if (
++                    meta.get("row_format") != "fp8_e4m3"
++                    or int(meta["total_rows"]) != rows
++                    or int(meta["row_width"]) != width
++                ):
++                    raise ValueError("Packed PLE metadata does not match model")
++                reader = BatchReader(
++                    path,
++                    rows,
++                    width,
++                    cfg.max_num_batched_tokens * count,
++                    cache_mb * 2**20,
++                    self._submission_policy,
++                )
++                self._readers.append(reader)
++                if self.supports_deferred_completion and not reader.can_defer:
++                    raise ValueError("PLE overlap requires the split native reader API")
++                output = torch.empty(
++                    (cfg.max_num_batched_tokens, count * width),
++                    dtype=dtype,
++                    device="cpu",
++                ).share_memory_()
++                self._owners.append(output)
++                sem = CpuGpuSemaphore(torch.device("cpu"))
++                sem._flag_tensor = mapped_flag
++                layer.setup_cross_process_offload(
++                    map_shared_tensor(output, device), sem
++                )
++                ids = torch.empty(
++                    (cfg.max_num_batched_tokens, count), dtype=torch.int64, device="cpu"
++                )
++                self._hash_state.append(
++                    (ngram, heads, int(config.eos_token_id), values, ids)
++                )
++                if self._gpu_hash is not None:
++                    ids.share_memory_()
++                    mapped_ids = map_shared_tensor(ids, device)
++                    error = torch.zeros(1, dtype=torch.int32).share_memory_()
++                    mapped_error = map_shared_tensor(error, device)
++                    self._gpu_hash_states.append(
++                        (
++                            mapped_ids,
++                            [value.to(device) for value in values],
++                            error,
++                            mapped_error,
++                            ctypes.c_int32.from_address(error.data_ptr()),
++                        )
++                    )
++        except BaseException:
++            self.close()
++            raise
++
++    def prepare_forward(
++        self, num_reqs, num_tokens, dummy_run, *, defer_completion=False
++    ):
++        if self._profile:
++            with torch.cuda.nvtx.range("ple_in_process.prepare"):
++                return self._prepare_forward(
++                    num_reqs, num_tokens, dummy_run, defer_completion
++                )
++        return self._prepare_forward(num_reqs, num_tokens, dummy_run, defer_completion)
++
++    def _prepare_forward(self, num_reqs, num_tokens, dummy_run, defer_completion=False):
++        if self._closed:
++            raise RuntimeError("PLE connector is closed")
++        if self._pending_seq is not None:
++            raise RuntimeError("Previous PLE batch has not completed")
++        if defer_completion and not self.supports_deferred_completion:
++            raise ValueError("Deferred PLE completion is not enabled")
++        if dummy_run:
++            self.signal_dummy_outputs(num_tokens)
++            return
++        if (
++            not 0 < num_reqs <= self._ngram_context_buf.shape[0]
++            or not num_reqs <= num_tokens <= self._input_ids_buf.numel()
++        ):
++            raise ValueError("PLE batch exceeds configured bounds")
++        if self._gb10_event_recorded:
++            self._gb10_consumed_event.synchronize()
++        if self._gpu_hash is not None:
++            stream = torch.cuda.current_stream(self.device)
++            for state, gpu_state in zip(self._hash_state, self._gpu_hash_states):
++                ngram, heads, eos, _, _ = state
++                mapped_ids, values, _, mapped_error, error_ref = gpu_state
++                error_ref.value = 0
++                code = self._gpu_hash(
++                    self._input_ids_source.data_ptr(),
++                    num_tokens,
++                    self._query_start_loc_source.data_ptr(),
++                    num_reqs,
++                    self._ngram_context_source.data_ptr(),
++                    self._ngram_context_source.stride(0),
++                    ngram,
++                    heads,
++                    eos,
++                    *(value.data_ptr() for value in values),
++                    mapped_ids.data_ptr(),
++                    mapped_error.data_ptr(),
++                    stream.cuda_stream,
++                    self._gpu_gate_flag.data_ptr(),
++                )
++                if code:
++                    raise RuntimeError(f"PLE GPU hash launch failed: {code}")
++            self._gpu_hash_event.record(stream)
++            self._gpu_hash_event.synchronize()
++            if any(state[-1].value for state in self._gpu_hash_states):
++                raise RuntimeError("PLE GPU hash rejected inputs")
++        else:
++            if self._uses_cuda_inputs:
++                self._input_ready_event.record(torch.cuda.current_stream(self.device))
++                self._copy_cuda_inputs(
++                    PleOffloadRequest(
++                        dp_rank=0,
++                        num_tokens=num_tokens,
++                        num_reqs=num_reqs,
++                        seq=self._seq + 1,
++                    )
++                )
++            else:
++                self._copy_cpu_inputs(
++                    PleOffloadRequest(
++                        dp_rank=0,
++                        num_tokens=num_tokens,
++                        num_reqs=num_reqs,
++                        seq=self._seq + 1,
++                    )
++                )
++            tokens = self._input_ids_buf[:num_tokens].to(torch.int64).clamp_min_(0)
++            query = self._query_start_loc_buf[: num_reqs + 1].to(torch.int64)
++            history = self._ngram_context_buf[:num_reqs].to(torch.int64).contiguous()
++        self._seq += 1
++        publish_expected(self._done_flag, self._seq)
++        for reader, output, state in zip(self._readers, self._owners, self._hash_state):
++            ngram, heads, eos, values, ids = state
++            if self._gpu_hash is None:
++                code = self._hash(
++                    tokens.data_ptr(),
++                    num_tokens,
++                    query.data_ptr(),
++                    num_reqs,
++                    history.data_ptr(),
++                    history.stride(0),
++                    ngram,
++                    heads,
++                    eos,
++                    *(v.data_ptr() for v in values),
++                    ids.data_ptr(),
++                )
++                if code:
++                    raise RuntimeError(f"PLE native hash rejected inputs: {code}")
++            if defer_completion:
++                reader.submit(ids[:num_tokens], output[:num_tokens], self._timeout_ms)
++            else:
++                reader.gather(ids[:num_tokens], output[:num_tokens], self._timeout_ms)
++        if defer_completion:
++            self._pending_seq = self._seq
++        else:
++            publish_done(self._done_flag, self._seq)
++
++    def finish_forward(self):
++        if self._pending_seq is None:
++            return
++        if self._profile:
++            with torch.cuda.nvtx.range("ple_in_process.complete"):
++                self._finish_forward()
++        else:
++            self._finish_forward()
++
++    def _finish_forward(self):
++        for reader in self._readers:
++            reader.complete()
++        publish_done(self._done_flag, self._pending_seq)
++        self._pending_seq = None
++
++    def close(self):
++        if self._closed:
++            return
++        if self._pending_seq is not None:
++            self.finish_forward()
++            torch.cuda.current_stream(self.device).synchronize()
++        self._closed = True
++        if self._gb10_event_recorded:
++            self._gb10_consumed_event.synchronize()
++        for reader in self._readers:
++            reader.close()
++        if self._pinned_input_buffers:
++            self._unpin_input_buffers()

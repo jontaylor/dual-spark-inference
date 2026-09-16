@@ -1,0 +1,66 @@
+--- NOT AN OVERRIDE IN A
++++ /home/jon/dual-spark-inference-kv-paging/experiments/gpu-native-completion-20260914/gpu_checkpoint.py
+@@ -0,0 +1,63 @@
++"""Experimental batched accepted-state copy. Not installed in the serving runner.
++
++Descriptors and destinations must remain alive until the copy stream completes.
++The caller owns source/destination blocks and must not publish a checkpoint until
++all of its piece statuses are valid and both ranks have completed the copy.
++No attention pages are copied by this primitive. It only normalizes recurrent
++state, using the same accepted-state selection as completion.native.py.
++"""
++import triton
++import triton.language as tl
++
++
++@triton.jit
++def copy_accepted_state(
++    descriptors, computed, accepted, columns, boundaries, statuses,
++    MAX_SPEC: tl.constexpr, TILE: tl.constexpr,
++):
++    # Each descriptor: source pointer, destination pointer, bytes per state,
++    # source block stride bytes, source block count, table pointer, table length,
++    # request index, convolution time-axis stride bytes (0 for temporal),
++    # convolution time-axis length. All descriptors contain int64 values.
++    piece = tl.program_id(1)
++    d = descriptors + piece * 10
++    src = tl.load(d).to(tl.pointer_type(tl.uint8))
++    dst = tl.load(d + 1).to(tl.pointer_type(tl.uint8))
++    length = tl.load(d + 2)
++    block_stride = tl.load(d + 3)
++    block_count = tl.load(d + 4)
++    table = tl.load(d + 5).to(tl.pointer_type(tl.int32))
++    table_length = tl.load(d + 6)
++    req = tl.load(d + 7)
++    axis_stride = tl.load(d + 8)
++    axis_length = tl.load(d + 9)
++    end = tl.load(computed + req)
++    boundary = tl.load(boundaries + req)
++    bias = tl.load(accepted + req) - 1 - (end - boundary)
++    column = tl.load(columns + req)
++    selected_column = column + tl.where(axis_stride == 0, bias, 0)
++    valid = ((end >= boundary) & (boundary > 0) & (bias >= 0)
++             & (bias <= MAX_SPEC) & (column >= 0)
++             & (selected_column >= 0) & (selected_column < table_length))
++    block = tl.load(table + selected_column, mask=valid, other=0)
++    valid = valid & (block > 0) & (block < block_count)
++    if tl.program_id(0) == 0:
++        tl.store(statuses + piece, valid.to(tl.int32))
++    offset = tl.program_id(0) * TILE + tl.arange(0, TILE)
++    # Convolution's speculative extension slides along the time axis. Fill the
++    # vacated tail with zero. Byte copying preserves BF16/FP32 payloads exactly.
++    time = (offset // tl.maximum(axis_stride, 1)) % tl.maximum(axis_length, 1)
++    keep = (axis_stride == 0) | (time + bias < axis_length)
++    source_offset = offset + bias * axis_stride
++    value = tl.load(src + block * block_stride + source_offset,
++                    mask=valid & (offset < length) & keep, other=0)
++    tl.store(dst + offset, value, mask=valid & (offset < length))
++
++
++def launch(descriptors, computed, accepted, columns, boundaries, statuses,
++           max_piece_bytes, max_spec=3):
++    """One batched GPU launch; no GPU scalar reads or CPU staging copies."""
++    copy_accepted_state[(triton.cdiv(max_piece_bytes, 4096), descriptors.shape[0])](
++        descriptors, computed, accepted, columns, boundaries, statuses,
++        MAX_SPEC=max_spec, TILE=4096, num_warps=4,
++    )

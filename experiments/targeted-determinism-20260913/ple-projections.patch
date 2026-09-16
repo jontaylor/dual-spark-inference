@@ -1,0 +1,22 @@
+--- ple_layer.original.py
++++ ple_layer.fixed.py
+@@ -9,6 +9,8 @@
+ from collections.abc import Iterable, Sequence
+ 
+ import torch
++from vllm.model_executor.determinism.gb10_targeted import FixedBF16LinearMethod
++from vllm.model_executor.layers.linear import UnquantizedLinearMethod
+ import torch.nn.functional as F
+ from torch import nn
+ 
+@@ -1015,6 +1017,10 @@
+             quant_config=quant_config,
+             prefix=f"{prefix}.value_proj",
+         )
++        for projection in (self.key_proj, self.value_proj):
++            if not isinstance(projection.quant_method, UnquantizedLinearMethod):
++                raise TypeError("Targeted PLE projection invariance requires BF16 weights")
++            projection.quant_method = FixedBF16LinearMethod()
+         norm_args = (
+             self.hc_hidden_size,
+             config.rms_norm_eps,

@@ -1,0 +1,45 @@
+--- a/scheduler.py
++++ b/scheduler.py
+@@ -332,6 +332,17 @@
+         self.need_mamba_block_aligned_split = (
+             self.has_mamba_layers and self.cache_config.mamba_cache_mode == "align"
+         )
++        if self.has_mamba_layers:
++            if self.use_eagle:
++                raise ValueError("Targeted GDN invariance does not support speculation")
++            if self.block_size % 64:
++                raise ValueError("GDN cache checkpoints must align to the 64-token grid")
++            if self.max_num_scheduled_tokens < 64:
++                raise ValueError("GDN canonical prefill requires a token budget >= 64")
++            threshold = self.scheduler_config.long_prefill_token_threshold
++            if 0 < threshold < 64:
++                raise ValueError("GDN long-prefill threshold must be zero or >= 64")
++            self.need_mamba_block_aligned_split = True
+         self.mamba_has_prefill_checkpoint_blocks = (
+             self.has_mamba_layers
+             # TODO: support spec decoding
+@@ -390,6 +401,24 @@
+         self._inflight_prefills: set[Request] = set()
+ 
+     def _mamba_block_aligned_split(
++        self, request, num_new_tokens, num_new_local_computed_tokens=0,
++        num_external_computed_tokens=0,
++    ):
++        """Intersect cache materialization stops with the GDN arithmetic grid."""
++        start = (request.num_computed_tokens + num_new_local_computed_tokens
++                 + num_external_computed_tokens)
++        prefill_end = max(request.num_prompt_tokens, request.num_tokens - 1)
++        if start < prefill_end and start % 64:
++            raise ValueError("GDN invariant prefill requires a 64-aligned cached state")
++        count = self._cache_aligned_split(
++            request, num_new_tokens, num_new_local_computed_tokens,
++            num_external_computed_tokens,
++        )
++        if start < prefill_end and start + count < prefill_end:
++            count = max(0, (start + count) // 64 * 64 - start)
++        return count
++
++    def _cache_aligned_split(
+         self,
+         request: Request,
+         num_new_tokens: int,

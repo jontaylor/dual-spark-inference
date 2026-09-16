@@ -1,0 +1,8 @@
+uprobe:/proc/456247/root/usr/local/lib/python3.12/dist-packages/nvidia/cu13/lib/libcudart.so.13:cudaEventSynchronize /pid == 456247 && tid == 456247/ { @begin[tid] = nsecs; @ev[tid] = arg0; }
+uretprobe:/proc/456247/root/usr/local/lib/python3.12/dist-packages/nvidia/cu13/lib/libcudart.so.13:cudaEventSynchronize /pid == 456247 && @begin[tid]/ { printf("E %llu %llu %llu %d\n", nsecs, @ev[tid], nsecs-@begin[tid], retval); @end[tid]=nsecs; delete(@begin[tid]); delete(@ev[tid]); }
+uprobe:/usr/lib/aarch64-linux-gnu/libcuda.so.580.173.02:cuLaunchKernel /pid == 456247 && tid == 456247 && @end[tid]/ { printf("K %llu %llu cuLaunchKernel\n", nsecs,nsecs-@end[tid]); delete(@end[tid]); }
+uprobe:/usr/lib/aarch64-linux-gnu/libcuda.so.580.173.02:cuLaunchKernelEx /pid == 456247 && tid == 456247 && @end[tid]/ { printf("K %llu %llu cuLaunchKernelEx\n", nsecs,nsecs-@end[tid]); delete(@end[tid]); }
+uprobe:/usr/lib/aarch64-linux-gnu/libcuda.so.580.173.02:cuGraphLaunch /pid == 456247 && tid == 456247 && @end[tid]/ { printf("K %llu %llu cuGraphLaunch\n", nsecs,nsecs-@end[tid]); delete(@end[tid]); }
+uprobe:/proc/456247/root/usr/local/lib/python3.12/dist-packages/nvidia/cu13/lib/libcudart.so.13:cudaMemcpyAsync /pid == 456247 && tid == 456247 && @end[tid]/ { printf("C %llu %llu %llu\n", nsecs,nsecs-@end[tid],arg2); }
+interval:s:60 { exit(); }
+END { clear(@begin); clear(@ev); clear(@end); }

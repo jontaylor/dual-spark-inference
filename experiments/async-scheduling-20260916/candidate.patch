@@ -1,0 +1,848 @@
+--- a/vllm/v1/core/sched/gb10_parking_scheduler.py
++++ b/vllm/v1/core/sched/gb10_parking_scheduler.py
+@@ -1,6 +1,6 @@
+ # SPDX-License-Identifier: Apache-2.0
+ # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+-"""Opt-in synchronous scheduler prototype for same-process request parking."""
++"""Parking policy shared by synchronous and version-aware asynchronous schedulers."""
+ 
+ import time
+ from typing import cast
+@@ -12,21 +12,27 @@
+ from vllm.v1.core.sched.parking_policy import ParkingPolicy, Phase
+ from vllm.v1.core.sched.request_queue import SchedulingPolicy
+ from vllm.v1.core.sched.scheduler import Scheduler
++from vllm.v1.core.sched.async_scheduler import AsyncScheduler
+ from vllm.v1.kv_cache_interface import CircularBufferSpec, FullAttentionSpec, MambaSpec
+ 
+ logger = init_logger(__name__)
+ 
+ 
+-class GB10ParkingScheduler(Scheduler):
++class _ParkingMixin:
++    _async_parking = False
+     def __init__(self, *args, **kwargs):
+         super().__init__(*args, **kwargs)
+-        if (
+-            self.scheduler_config.async_scheduling
+-            or self.vllm_config.max_concurrent_batches != 1
+-        ):
+-            raise ValueError(
+-                "Parking prototype requires synchronous single-batch scheduling"
+-            )
++        if self._async_parking:
++            if (not self.scheduler_config.async_scheduling
++                    or self.vllm_config.max_concurrent_batches != 2
++                    or self.parallel_config.pipeline_parallel_size != 1
++                    or not self.vllm_config.use_v2_model_runner):
++                raise ValueError("Async parking requires V2, PP1 and two in-flight batches")
++            if not getattr(self.connector, "supports_versioned_completions", False):
++                raise ValueError("Async parking requires versioned completion ownership")
++        elif (self.scheduler_config.async_scheduling
++              or self.vllm_config.max_concurrent_batches != 1):
++            raise ValueError("Synchronous parking requires single-batch scheduling")
+         if (
+             self.policy != SchedulingPolicy.FCFS
+             or self.lora_config
+@@ -138,9 +144,11 @@
+         if self._quiescing:
+             return False
+         rid = request.request_id
++        if self._async_parking and not self._parking_connector.can_reserve_terminal(rid):
++            return False
+         ticket = self.parking.tickets[rid]
+         if ticket.phase in (Phase.RUNNING, Phase.RESTORING):
+-            return True
++            return (not self._async_parking or self._parking_connector.reserve_terminal(rid))
+         if not self.parking.queue or self.parking.queue[0] != rid:
+             return False
+         admitted = self.parking.admit_head()
+@@ -156,6 +164,8 @@
+                 ticket.phase.name,
+                 self.parking.free,
+             )
++        if admitted is not None and self._async_parking:
++            assert self._parking_connector.reserve_terminal(rid)
+         return admitted is not None
+ 
+     def _select_waiting_queue_for_scheduling(self):
+@@ -182,6 +192,8 @@
+             raise RuntimeError(
+                 "Unplanned physical KV preemption: refusing a recompute loop"
+             )
++        if self._async_parking:
++            self._parking_connector.release_terminal(request.request_id)
+         return super()._preempt_request(request, timestamp, drop_stale_output)
+ 
+     def _try_park(self, request):
+@@ -249,7 +261,14 @@
+         self._parking_connector.retry_completion_allocations()
+         for request in list(self.running):
+             rid = request.request_id
+-            required_tokens = request.num_tokens + self.num_lookahead_tokens + 1
++            # Rejection/draining removes speculative placeholders. Keep the
++            # reservation high-water mark until park/free; the ledger's growth
++            # contract is monotone even when the live token estimate shrinks.
++            required_tokens = max(
++                self.parking.tickets[rid].tokens,
++                request.num_tokens + request.num_output_placeholders
++                + self.num_lookahead_tokens + 1,
++            )
+             forced = (
+                 self._force_after > 0
+                 and not self._forced
+@@ -338,6 +357,8 @@
+         if native is not None:
+             native.deferred_requests.pop(rid, None)
+         super()._free_blocks(request)
++        if self._async_parking:
++            self._parking_connector.release_terminal(rid)
+         # Base delays this call for a cancelled request with load I/O pending.
+         checkpoint = self._parked.pop(rid, None)
+         if checkpoint is not None:
+@@ -347,3 +368,13 @@
+             self._forced_request = None
+         self._generations.pop(rid, None)
+         self.parking.retire(rid, io_drained=True)
++
++
++class GB10ParkingScheduler(_ParkingMixin, Scheduler):
++    """Original single-batch execution with the same parking policy."""
++
++
++class GB10AsyncParkingScheduler(_ParkingMixin, AsyncScheduler):
++    """Upstream async token accounting plus version-aware request parking."""
++
++    _async_parking = True
+--- /dev/null
++++ b/vllm/v1/kv_offload/gb10_terminal_worker.py
+@@ -0,0 +1,265 @@
++"""Worker binding for selectively preserved async terminal state.
++
++Candidate only. The scheduler bounds outstanding versions, including deferred
++completions; packed buffers contain meaningful tensor bytes, not KV padding.
++"""
++from dataclasses import dataclass
++
++import torch
++import triton
++
++from vllm.v1.kv_offload.gb10_terminal_state import make_marker, make_snapshot_copier
++from vllm.v1.kv_offload.gb10_terminal_versions import TerminalVersions, Version
++
++
++@dataclass
++class Piece:
++    group: int
++    source: torch.Tensor
++    table: torch.Tensor
++    offset: int
++    size: int
++    axis_stride: int
++    axis_length: int
++    circular: bool
++
++
++@dataclass
++class Payload:
++    data: torch.Tensor
++    tag: torch.Tensor
++    statuses: torch.Tensor
++
++
++class TerminalWorker:
++    def __init__(self, connector, runner):
++        from vllm.distributed.kv_transfer.kv_connector.v1.gb10_completion import group_spec
++        from vllm.v1.kv_cache_interface import MambaSpec, CircularBufferSpec
++        from vllm.model_executor.layers.mamba.mamba_utils import (
++            get_conv_copy_spec, get_temporal_copy_spec, is_conv_state_dim_first,
++        )
++        self.connector = connector
++        self.runner = runner
++        self.book = TerminalVersions(runner.max_num_reqs)
++        self.by_request = {}
++        self.sampling = {}
++        self.mark = make_marker()
++        self.copy = make_snapshot_copier()
++        self.step = 0
++        self.pieces = []
++        self.byte_count = 0
++        groups = connector._completion_groups
++        funcs = runner.model.get_mamba_state_copy_funcs({
++            group_spec(g).mamba_type for g in groups if isinstance(group_spec(g), MambaSpec)
++        })
++        context = runner.vllm_config.compilation_config.static_forward_context
++        for gi, group in enumerate(groups):
++            spec = group_spec(group)
++            if not isinstance(spec, (MambaSpec, CircularBufferSpec)):
++                continue
++            original_group = connector._completion_order[gi]
++            table = runner.block_tables.block_tables[original_group].gpu
++            for layer in group.layer_names:
++                per_layer = getattr(group.kv_cache_spec, 'kv_cache_specs', {}).get(layer, spec)
++                caches = context[layer].kv_cache
++                if isinstance(caches, torch.Tensor):
++                    caches = (caches,)
++                circular = isinstance(per_layer, CircularBufferSpec)
++                copy_funcs = (None,)*len(caches) if circular else funcs[per_layer.mamba_type]
++                if len(caches) != len(copy_funcs):
++                    raise RuntimeError('Unrepresented terminal snapshot state')
++                for tensor, copy_func in zip(caches, copy_funcs):
++                    if not tensor[0].is_contiguous() or tensor.shape[0] != runner.kv_cache_config.num_blocks:
++                        raise RuntimeError('Unsupported terminal snapshot block layout')
++                    if circular or copy_func is get_temporal_copy_spec:
++                        axis_stride, axis_length = 0, 1
++                    elif copy_func is get_conv_copy_spec:
++                        axis = 1 if is_conv_state_dim_first() else 0
++                        axis_stride = tensor[0].stride(axis)*tensor.element_size()
++                        axis_length = tensor[0].shape[axis]
++                    else:
++                        raise RuntimeError('Unsupported terminal snapshot normalization')
++                    size = tensor[0].numel()*tensor.element_size()
++                    self.pieces.append(Piece(gi, tensor, table, self.byte_count, size,
++                                             axis_stride, axis_length, circular))
++                    self.byte_count += size
++        if not self.pieces:
++            raise RuntimeError('Terminal snapshot has no recurrent/ring pieces')
++        maximum = int(runner.vllm_config.kv_transfer_config.kv_connector_extra_config[
++            'async_terminal_snapshot_bytes'])
++        self.maximum = maximum
++        self.fixed_bytes = runner.max_num_reqs*(self.byte_count + 24 + 4*len(self.pieces) + 20)
++        if self.fixed_bytes > maximum:
++            raise RuntimeError('Terminal snapshot content exceeds reserved memory budget')
++        device = runner.device
++        capacity = runner.max_num_reqs
++        # Allocate bounded storage before serving; retired request slots do not
++        # return a payload slot until the generation-qualified release arrives.
++        self.payload_data = torch.empty((capacity, self.byte_count), dtype=torch.uint8, device=device)
++        self.payload_tags = torch.empty((capacity, 3), dtype=torch.int64, device=device)
++        self.payload_statuses = torch.empty((capacity, len(self.pieces)), dtype=torch.int32, device=device)
++        self.payload_indices = {}
++        self.free_payload_indices = list(range(capacity-1, -1, -1))
++        self.boundaries = torch.full((runner.max_num_reqs,), -1, dtype=torch.int32, device=device)
++        self.steps = torch.full_like(self.boundaries, -1)
++        self.limits = torch.zeros_like(self.boundaries)
++        self.eos = torch.full_like(self.boundaries, -1)
++        self.stop_counts = torch.zeros_like(self.boundaries)
++        self.stop_tokens = torch.full((runner.max_num_reqs, 1), -1, dtype=torch.int64, device=device)
++        self.descriptors = None
++
++    def before_requests(self, scheduler_output):
++        meta = scheduler_output.kv_connector_metadata
++        retiring = set(scheduler_output.finished_req_ids)
++        retiring.update(scheduler_output.preempted_req_ids or ())
++        for rid in retiring:
++            version = self.by_request.pop(rid, None)
++            if version is not None:
++                self.book.retire_slot(version)
++                self.sampling.pop(version, None)
++        for rid, generation in getattr(meta, 'terminal_releases', ()):
++            version = Version(rid, generation)
++            snapshot = self.book.snapshots.get(version)
++            if snapshot is not None and snapshot.active:
++                # Scheduler release is generation-qualified and follows the
++                # connector's all-rank completion acknowledgement.
++                self.book.retire_slot(version)
++                if self.by_request.get(rid) == version:
++                    del self.by_request[rid]
++                self.sampling.pop(version, None)
++            if self.book.release(version):
++                self.free_payload_indices.append(self.payload_indices.pop(version))
++        if retiring or getattr(meta, 'terminal_releases', ()):
++            self._rebuild()
++
++    def after_requests(self, scheduler_output):
++        versions = getattr(scheduler_output.kv_connector_metadata, 'terminal_versions', {})
++        changed = False
++        for request in scheduler_output.scheduled_new_reqs:
++            rid = request.req_id
++            version = Version(rid, versions[rid])
++            slot = self.runner.req_states.req_id_to_index[rid]
++            if version in self.book.snapshots:
++                if self.book.snapshots[version].slot != slot:
++                    raise RuntimeError('Resumed request needs a new terminal generation')
++                continue
++            if not self.free_payload_indices:
++                raise RuntimeError('Scheduler exceeded retained terminal capacity')
++            index = self.free_payload_indices[-1]
++            payload = Payload(self.payload_data[index], self.payload_tags[index], self.payload_statuses[index])
++            self.book.register(version, slot, payload)
++            self.free_payload_indices.pop()
++            self.payload_indices[version] = index
++            payload.tag.fill_(-1)
++            payload.statuses.fill_(-1)
++            self.by_request[rid] = version
++            self.sampling[version] = request.sampling_params
++            self.boundaries[slot] = -1
++            self.steps[slot] = -1
++            changed = True
++        if changed:
++            self._rebuild()
++
++    def _rebuild(self):
++        active = list(self.book.active())
++        width = triton.next_power_of_2(max([1]+[
++            len(self.sampling[s.version].stop_token_ids or ()) for s in active]))
++        # Allow old/new descriptor and stop arrays to coexist during replacement.
++        scratch_bytes = 2*self.runner.max_num_reqs*(width*8 + len(self.pieces)*15*8)
++        if self.fixed_bytes + scratch_bytes > self.maximum:
++            raise RuntimeError('Terminal descriptors exceed reserved memory budget')
++        on_cuda = self.runner.device.type == 'cuda'
++        # Lifecycle updates must not wait for queued GPU work. Pinned staging
++        # permits stream-ordered copies; PyTorch retains each source allocation
++        # until its asynchronous copy completes.
++        host = dict(device='cpu', pin_memory=on_cuda)
++        stops = torch.full((self.runner.max_num_reqs, width), -1, dtype=torch.int64, **host)
++        eos = torch.full((self.runner.max_num_reqs,), -1, dtype=torch.int32, **host)
++        limits = torch.zeros((self.runner.max_num_reqs,), dtype=torch.int32, **host)
++        counts = torch.zeros((self.runner.max_num_reqs,), dtype=torch.int32, **host)
++        descriptors = []
++        for snapshot in active:
++            slot, payload = snapshot.slot, snapshot.payload
++            params = self.sampling[snapshot.version]
++            ids = params.stop_token_ids or ()
++            if ids:
++                stops[slot, :len(ids)] = torch.tensor(ids, device="cpu")
++            eos[slot] = params.eos_token_id if params.eos_token_id is not None else -1
++            limits[slot] = params.max_tokens
++            counts[slot] = len(ids)
++            for i, piece in enumerate(self.pieces):
++                descriptors.append([
++                    piece.source.data_ptr(), payload.data.data_ptr()+piece.offset,
++                    piece.size, piece.source.stride(0)*piece.source.element_size(),
++                    piece.source.shape[0], piece.table[slot].data_ptr(), piece.table.shape[1],
++                    slot, piece.axis_stride, piece.axis_length, int(piece.circular),
++                    payload.statuses[i:i+1].data_ptr(), payload.tag.data_ptr(), int(i == 0),
++                    snapshot.version.generation,
++                ])
++        self.eos.copy_(eos, non_blocking=on_cuda)
++        self.limits.copy_(limits, non_blocking=on_cuda)
++        self.stop_counts.copy_(counts, non_blocking=on_cuda)
++        self.stop_tokens = stops.to(self.runner.device, non_blocking=on_cuda)
++        self.descriptors = (torch.tensor(descriptors, dtype=torch.int64, **host)
++                            .to(self.runner.device, non_blocking=on_cuda)
++                            if descriptors else None)
++
++    def capture(self, input_batch, sampled, counts):
++        if self.descriptors is None or input_batch.num_reqs == 0:
++            return
++        self.step += 1
++        r = self.runner
++        self.mark[(input_batch.num_reqs,)](
++            input_batch.idx_mapping, sampled, counts, r.req_states.total_len.gpu,
++            r.req_states.prompt_len.gpu, self.limits, self.eos, self.stop_tokens,
++            self.stop_counts, self.boundaries, self.steps, sampled.stride(0),
++            self.stop_tokens.shape[1], r.max_model_len, self.step,
++            STOP_TILE=self.stop_tokens.shape[1],
++        )
++        self.copy[(4, self.descriptors.shape[0])](
++            self.descriptors, r.req_states.num_computed_tokens.gpu,
++            r.model_state.num_accepted_tokens_gpu, r.model_state._mamba_state_idx_gpu,
++            self.boundaries, self.steps, self.step, MAX_SPEC=r.num_speculative_steps,
++            TILE=4096, COPY_LANES=4,
++        )
++
++    def selected(self, save):
++        payload = self.book.lookup(Version(save.request_id, save.terminal_version))
++        # This event-only read also fences all earlier stream copies. It is
++        # outside decode's common path, like the existing completion validity read.
++        tag = payload.tag.cpu().tolist()
++        if tag[0] != save.record.boundary or tag[1] < 0 or tag[2] != save.terminal_version:
++            return None
++        if not bool(payload.statuses.eq(1).all().item()):
++            return None
++        return payload
++
++    def resident(self, save, job):
++        payload = self.selected(save)
++        if payload is None:
++            return False
++        destinations = {}
++        cursor = 0
++        for gi, count in enumerate(job.src_spec.group_sizes):
++            if any(p.group == gi for p in self.pieces):
++                if count != 1:
++                    raise RuntimeError('Terminal snapshot requires one destination per state group')
++                destinations[gi] = job.dst_spec.memory_blocks[cursor]
++            cursor += count
++        for piece in self.pieces:
++            target = piece.source[destinations[piece.group]].view(torch.uint8).reshape(-1)
++            target.copy_(payload.data[piece.offset:piece.offset+piece.size])
++        return True
++
++    def disk_replacements(self, save):
++        payload = self.selected(save)
++        if payload is None:
++            return None
++        worker = self.connector.connector_worker.worker
++        replacements = {}
++        raw = payload.data.cpu().numpy().tobytes()
++        for piece in self.pieces:
++            offset = worker.state_offset(piece.source, piece.group)
++            replacements.setdefault(piece.group, []).append(
++                (offset, raw[piece.offset:piece.offset+piece.size]))
++        return replacements
+--- /dev/null
++++ b/vllm/v1/kv_offload/gb10_terminal_state.py
+@@ -0,0 +1,130 @@
++"""Terminal-step selection for versioned async completion snapshots.
++
++Not installed. This identifies only statuses eligible for CompletionCache:
++FINISHED_STOPPED and FINISHED_LENGTH_CAPPED. Repetition/abort snapshots remain
++ineligible, just as on the synchronous path. Output processors own stop strings.
++The device marker must run after sampled-token postprocessing and before a
++subsequent forward can overwrite recurrent or circular state.
++"""
++
++
++def terminal_boundary(tokens, *, total_before, prompt_len, max_tokens,
++                      max_model_len, eos_token_id, stop_token_ids=()):
++    """CPU oracle matching scheduler check_stop's eligible stopping rules."""
++    for n, token in enumerate(tokens, 1):
++        total = total_before + n
++        if (token == eos_token_id or token in stop_token_ids
++                or total >= max_model_len or total-prompt_len >= max_tokens):
++            return total-1
++    return None
++
++
++def make_marker():
++    # Import lazily: CPU ownership and boundary tests need no CUDA initialization.
++    import triton
++    import triton.language as tl
++
++    @triton.jit
++    def mark_terminal(
++        idx_mapping, sampled, num_sampled, total_len_after, prompt_len,
++        max_tokens, eos_tokens, stop_tokens, stop_counts,
++        terminal_boundaries, terminal_steps,
++        sampled_stride: tl.constexpr, stop_stride: tl.constexpr,
++        max_model_len: tl.constexpr, step,
++        STOP_TILE: tl.constexpr,
++    ):
++        batch_row = tl.program_id(0)
++        ri = tl.load(idx_mapping + batch_row)
++        if ri < 0:
++            return
++        # A later in-flight batch must never replace the first terminal version.
++        if tl.load(terminal_steps + ri) >= 0:
++            return
++        n = tl.load(num_sampled + batch_row)
++        if n <= 0:
++            return
++        before = tl.load(total_len_after + ri)-n
++        prompt = tl.load(prompt_len + ri)
++        limit = tl.load(max_tokens + ri)
++        eos = tl.load(eos_tokens + ri)
++        offsets = tl.arange(0, STOP_TILE)
++        count = tl.load(stop_counts + ri)
++        stops = tl.load(stop_tokens + ri*stop_stride + offsets,
++                        mask=offsets < count, other=-1)
++        boundary = -1
++        for i in range(n):
++            token = tl.load(sampled + batch_row*sampled_stride + i)
++            total = before+i+1
++            stopped = ((token == eos) | (tl.sum(((offsets < count) & (stops == token)).to(tl.int32), 0) > 0)
++                       | (total >= max_model_len) | (total-prompt >= limit))
++            if (boundary < 0) & stopped:
++                boundary = total-1
++        if boundary >= 0:
++            tl.store(terminal_boundaries + ri, boundary)
++            tl.store(terminal_steps + ri, step)
++
++    return mark_terminal
++
++
++def make_snapshot_copier():
++    import triton
++    import triton.language as tl
++
++    @triton.jit
++    def capture_terminal(
++        descriptors, computed, accepted, columns, boundaries, terminal_steps,
++        step, MAX_SPEC: tl.constexpr, TILE: tl.constexpr,
++        COPY_LANES: tl.constexpr,
++    ):
++        # One descriptor per meaningful tensor piece, not padded KV page.
++        # Fixed grid per piece: nonterminal requests exit before the byte loop.
++        # No CPU token read and no copy of continuing requests' recurrent state.
++        piece = tl.program_id(1)
++        lane = tl.program_id(0)
++        d = descriptors + piece*15
++        ri = tl.load(d+7)
++        if tl.load(terminal_steps+ri) != step:
++            return
++        src = tl.load(d).to(tl.pointer_type(tl.uint8))
++        dst = tl.load(d+1).to(tl.pointer_type(tl.uint8))
++        length = tl.load(d+2)
++        stride = tl.load(d+3)
++        block_count = tl.load(d+4)
++        table = tl.load(d+5).to(tl.pointer_type(tl.int32))
++        table_length = tl.load(d+6)
++        axis_stride = tl.load(d+8)
++        axis_length = tl.load(d+9)
++        circular = tl.load(d+10) != 0
++        status = tl.load(d+11).to(tl.pointer_type(tl.int32))
++        tag = tl.load(d+12).to(tl.pointer_type(tl.int64))
++        writes_tag = tl.load(d+13)
++        # d+14 is the immutable CPU-assigned request generation/lease identity.
++        generation = tl.load(d+14)
++        boundary = tl.load(boundaries+ri)
++        end = tl.load(computed+ri)
++        bias = tl.load(accepted+ri)-1-(end-boundary)
++        column = tl.load(columns+ri)
++        selected = tl.where(circular, 0, column+tl.where(axis_stride == 0, bias, 0))
++        valid = ((boundary > 0) & (selected >= 0) & (selected < table_length)
++                 & (circular | ((end >= boundary) & (bias >= 0)
++                                & (bias <= MAX_SPEC) & (column >= 0))))
++        block = tl.load(table+selected, mask=valid, other=0)
++        valid = valid & (block > 0) & (block < block_count)
++        if lane == 0:
++            tl.store(status, valid.to(tl.int32))
++            if writes_tag:
++                tl.store(tag, boundary)
++                tl.store(tag+1, step)
++                tl.store(tag+2, generation)
++        if not valid:
++            return
++        effective_bias = tl.where(circular, 0, bias)
++        for start in range(lane*TILE, length, TILE*COPY_LANES):
++            offset = start+tl.arange(0, TILE)
++            time = (offset//tl.maximum(axis_stride, 1)) % tl.maximum(axis_length, 1)
++            keep = circular | (axis_stride == 0) | (time+effective_bias < axis_length)
++            value = tl.load(src+block*stride+offset+effective_bias*axis_stride,
++                            mask=(offset < length) & keep, other=0)
++            tl.store(dst+offset, value, mask=offset < length)
++
++    return capture_terminal
+--- /dev/null
++++ b/vllm/v1/kv_offload/gb10_terminal_versions.py
+@@ -0,0 +1,92 @@
++"""Generation-qualified ownership for terminal snapshots, independent of slots.
++
++The worker may retire a request slot before completion-cache allocation succeeds.
++Its immutable snapshot remains owned until the scheduler releases that precise
++generation after the connector has drained its transfer. No live serving imports.
++"""
++from dataclasses import dataclass, field
++
++
++class SnapshotCapacity(Exception):
++    """Admission must defer; existing snapshots must not be evicted implicitly."""
++
++
++@dataclass(frozen=True)
++class Version:
++    request_id: str
++    generation: int
++
++
++@dataclass
++class Snapshot:
++    version: Version
++    slot: int
++    payload: object
++    active: bool = True
++    transfers: set[int] = field(default_factory=set)
++
++
++class TerminalVersions:
++    def __init__(self, capacity):
++        if capacity <= 0:
++            raise ValueError('Snapshot capacity must be positive')
++        self.capacity = capacity
++        self.snapshots = {}
++        self.slots = {}
++        self._generation_highwater = {}
++
++    def register(self, version, slot, payload):
++        if version.generation <= 0 or slot < 0:
++            raise ValueError('Invalid snapshot identity')
++        if version in self.snapshots:
++            old = self.snapshots[version]
++            if old.slot != slot or old.payload is not payload:
++                raise RuntimeError('Snapshot generation cannot be rebound')
++            return old
++        if version.generation <= self._generation_highwater.get(version.request_id, 0):
++            raise RuntimeError('Snapshot generation was already retired')
++        if len(self.snapshots) >= self.capacity:
++            raise SnapshotCapacity()
++        if slot in self.slots:
++            raise RuntimeError('Active worker slot still belongs to another generation')
++        snapshot = Snapshot(version, slot, payload)
++        self.snapshots[version] = snapshot
++        self.slots[slot] = version
++        self._generation_highwater[version.request_id] = version.generation
++        return snapshot
++
++    def retire_slot(self, version):
++        snapshot = self.snapshots[version]
++        if snapshot.active:
++            if self.slots.get(snapshot.slot) != version:
++                raise RuntimeError('Worker slot ownership changed before retirement')
++            del self.slots[snapshot.slot]
++            snapshot.active = False
++
++    def begin_transfer(self, version, job):
++        self.snapshots[version].transfers.add(job)
++
++    def finish_transfer(self, version, job):
++        # A delayed ACK for a released generation cannot touch its successor.
++        snapshot = self.snapshots.get(version)
++        if snapshot is None:
++            return False
++        if job not in snapshot.transfers:
++            return False
++        snapshot.transfers.remove(job)
++        return True
++
++    def release(self, version):
++        snapshot = self.snapshots.get(version)
++        if snapshot is None:
++            return False
++        if snapshot.active or snapshot.transfers:
++            raise RuntimeError('Snapshot release precedes slot retirement or I/O drain')
++        del self.snapshots[version]
++        return True
++
++    def lookup(self, version):
++        return self.snapshots[version].payload
++
++    def active(self):
++        return (snapshot for snapshot in self.snapshots.values() if snapshot.active)
+--- a/vllm/distributed/kv_transfer/kv_connector/v1/gb10_completion.py
++++ b/vllm/distributed/kv_transfer/kv_connector/v1/gb10_completion.py
+@@ -83,10 +83,14 @@
+     record: CompletionRecord
+     block_ids: tuple[list[int], ...]
+     job_id: int
++    terminal_version: int | None = None
++    request_id: str = ""
+ 
+ 
+ @dataclass
+ class CompletionMetadata(OffloadingConnectorMetadata):
++    terminal_versions: dict[str, int] = field(default_factory=dict, kw_only=True)
++    terminal_releases: list[tuple[str, int]] = field(default_factory=list, kw_only=True)
+     completion_saves: dict[str, CompletionSave] = field(default_factory=dict)
+     checkpoint_requests: list[tuple[str, int]] = field(default_factory=list)
+     checkpoint_finished: set[str] = field(default_factory=set)
+@@ -143,6 +147,8 @@
+         self.release_lookup_pin(rid)
+         self.selected.pop(rid, None)
+         inherited = self.restored_pages.get(rid, {})
++        terminal_version = (self.connector.terminal_version(rid)
++                            if not active and self.connector.supports_versioned_completions else None)
+         state = s._req_status.get(rid)
+         boundary = min(request.num_computed_tokens, request.num_tokens - 1)
+         # Capture the exact accepted completion/suspension boundary on demand.
+@@ -156,7 +162,7 @@
+                 RequestStatus.FINISHED_STOPPED,
+                 RequestStatus.FINISHED_LENGTH_CAPPED,
+             )
+-            or request.num_in_flight_tokens
++            or (request.num_in_flight_tokens and terminal_version is None)
+             or boundary <= 0
+             or not (active or memory)
+             and boundary % self.connector._alignment == 0
+@@ -204,6 +210,7 @@
+                         shared.append(key)
+                 if (key is None and memory and getattr(s.manager, 'native_mode', False)
+                         and not isinstance(spec, MambaSpec)
++                        and not (terminal_version is not None and isinstance(spec, CircularBufferSpec))
+                         and index < len(block_ids[gi])):
+                     candidate = s.manager.native_key(
+                         block_ids[gi][index], gi, index, state.req_context)
+@@ -266,6 +273,7 @@
+             borrowed = {
+                 key: sources[key] for gi, index, key in pages
+                 if key in sources and not isinstance(group_spec(self.groups[gi]), MambaSpec)
++                and not (terminal_version is not None and isinstance(group_spec(self.groups[gi]), CircularBufferSpec))
+             } if getattr(s.manager, 'native_mode', False) else None
+             try:
+                 result = s.manager.prepare_memory_store(
+@@ -300,7 +308,7 @@
+                 sizes[gi] += 1
+         gpu = GPULoadStoreSpec(list(sources.values()), sizes, indices)
+         jid = s._generate_job_id()
+-        save = CompletionSave(record, block_ids, jid)
++        save = CompletionSave(record, block_ids, jid, terminal_version, rid)
+         job = TransferJob(rid, gpu, result.store_spec)
+         s._jobs[jid] = TransferJobStatus(rid, s.config.num_workers, set(sources), True)
+         state.transfer_jobs.add(jid)
+@@ -551,6 +559,13 @@
+         }
+     )
+     for rid, save in metadata.completion_saves.items():
++        if save.terminal_version is not None:
++            replacements = runner._terminal_worker.disk_replacements(save)
++            if replacements is None:
++                connector._invalid_completions.add(save.job_id)
++            else:
++                worker.completion_replacements[save.job_id] = replacements
++            continue
+         ri = runner.req_states.req_id_to_index.get(rid)
+         if ri is None:
+             connector._invalid_completions.add(save.job_id)
+--- a/vllm/distributed/kv_transfer/kv_connector/v1/gb10_aligned_offloading_connector.py
++++ b/vllm/distributed/kv_transfer/kv_connector/v1/gb10_aligned_offloading_connector.py
+@@ -47,6 +47,11 @@
+ 
+ class GB10AlignedOffloadingConnector(OffloadingConnector):
+     def __init__(self, vllm_config, role, kv_cache_config):
++        self.supports_versioned_completions = bool(vllm_config.scheduler_config.async_scheduling)
++        self._terminal_versions = {}
++        self._terminal_releases = []
++        self._terminal_generation = 0
++        self._terminal_capacity = vllm_config.scheduler_config.max_num_seqs
+         self._pinned_checkpoints = {}
+         self._completion = None
+         self._invalid_completions = set()
+@@ -61,6 +66,10 @@
+         self._pressure_saves = {}
+         self.memory_completions = bool(extra.get("memory_completion_cache", False))
+         self.native_completions = bool(extra.get('native_completion_cache', False))
++        if self.supports_versioned_completions and (
++                not self.native_completions or not self.memory_completions
++                or not self.pressure_only or int(extra.get("async_terminal_snapshot_bytes", 0)) <= 0):
++            raise ValueError("Async paging requires native completion versions and a memory budget")
+         if self.native_completions and not self.memory_completions:
+             raise ValueError('Native completion reuse requires memory completion events')
+         if self.memory_completions and not self.pressure_only:
+@@ -127,7 +136,6 @@
+         if self._completion_enabled and (
+             not rank_local
+             or not vllm_config.use_v2_model_runner
+-            or vllm_config.scheduler_config.async_scheduling
+             or vllm_config.parallel_config.pipeline_parallel_size != 1
+         ):
+             raise ValueError(
+@@ -390,6 +398,11 @@
+             assert isinstance(meta, OffloadingConnectorMetadata)
+             meta.store_jobs.update(self._spill_to_send)
+         self._spill_to_send.clear()
++        if self.supports_versioned_completions:
++            meta.terminal_versions = {r.req_id: self.terminal_version(r.req_id)
++                                      for r in scheduler_output.scheduled_new_reqs}
++            meta.terminal_releases = self._terminal_releases
++            self._terminal_releases = []
+         if any(
+             time.monotonic() - job.started > 300 for job in self._spill_jobs.values()
+         ):
+@@ -559,3 +572,23 @@
+             self._completion.records.clear()
+             self._completion.restored_pages.clear()
+         return super().reset_cache()
++
++
++    def can_reserve_terminal(self, rid):
++        return rid in self._terminal_versions or len(self._terminal_versions) < self._terminal_capacity
++
++    def reserve_terminal(self, rid):
++        if rid not in self._terminal_versions:
++            if not self.can_reserve_terminal(rid):
++                return False
++            self._terminal_generation += 1
++            self._terminal_versions[rid] = self._terminal_generation
++        return True
++
++    def terminal_version(self, rid):
++        return self._terminal_versions[rid]
++
++    def release_terminal(self, rid):
++        generation = self._terminal_versions.pop(rid, None)
++        if generation is not None:
++            self._terminal_releases.append((rid, generation))
+--- a/vllm/v1/kv_offload/gb10_gpu_completion_copy.py
++++ b/vllm/v1/kv_offload/gb10_gpu_completion_copy.py
+@@ -31,6 +31,10 @@
+             remaining[rid] = save
+             continue
+         worker.completion_gpu_jobs.add(save.job_id)
++        if save.terminal_version is not None:
++            if not runner._terminal_worker.resident(save, job):
++                connector._invalid_completions.add(save.job_id)
++            continue
+         ri = runner.req_states.req_id_to_index.get(rid)
+         if ri is None:
+             connector._invalid_completions.add(save.job_id)
+--- a/vllm/v1/worker/gpu/model_runner.py
++++ b/vllm/v1/worker/gpu/model_runner.py
+@@ -297,6 +297,7 @@
+         )
+ 
+         self.step_timing = StepTimingCollector()
++        self._terminal_worker = None
+ 
+         # General request states.
+         self.req_states = RequestState(
+@@ -705,6 +706,10 @@
+             self.kv_connector = NO_OP_KV_CONNECTOR
+         else:
+             self.kv_connector = get_kv_connector(self.vllm_config, kv_caches_dict)
++            connector = getattr(self.kv_connector, "kv_connector", None)
++            if getattr(connector, "supports_versioned_completions", False):
++                from vllm.v1.kv_offload.gb10_terminal_worker import TerminalWorker
++                self._terminal_worker = TerminalWorker(connector, self)
+ 
+     def _init_kv_zero_meta(self) -> None:
+         """Build KV-block zeroing metadata; invoked from gpu_worker."""
+@@ -1568,6 +1573,9 @@
+             # Update the request states.
+             self.update_pp_decode_requests()
+             connector = getattr(self.kv_connector, "kv_connector", None)
++            if getattr(connector, "supports_versioned_completions", False):
++                assert self._terminal_worker is not None
++                self._terminal_worker.before_requests(scheduler_output)
+             completion_hook = getattr(connector, "prepare_completion", None)
+             if completion_hook is not None:
+                 completion_hook(self, scheduler_output.kv_connector_metadata)
+@@ -1576,6 +1584,8 @@
+             self.add_requests(scheduler_output)
+             self.update_requests(scheduler_output)
+             self.block_tables.apply_staged_writes()
++            if self._terminal_worker is not None:
++                self._terminal_worker.after_requests(scheduler_output)
+             if scheduler_output.total_num_scheduled_tokens == 0:
+                 # No need to run the model.
+                 empty_output = self.kv_connector.no_forward(scheduler_output)
+@@ -2033,6 +2043,8 @@
+         model_runner_output.kv_connector_output = kv_connector_output
+         model_runner_output.ec_connector_output = ec_connector_output
+ 
++        if self._terminal_worker is not None:
++            self._terminal_worker.capture(input_batch, sampler_output.sampled_token_ids, num_sampled)
+         return async_output
+ 
+     def take_draft_token_ids(self) -> DraftTokenIds | None:
+--- a/launch_rank.py
++++ b/launch_rank.py
+@@ -269,7 +269,13 @@
+ if rank:args+=['--headless']
+ else:args+=['--host','0.0.0.0','--port',str(cfg['port'])]
+ paging = cfg.get('kv_paging', {})
+-args += ['--kernel-config', '{"enable_flashinfer_autotune":false}', '--kv-cache-memory', str(paging.get('kv_bytes_per_rank', 4294967296)), '--kv-transfer-config', json.dumps({
++async_parking = bool(cfg.get('async_scheduling', False))
++terminal_budget = int(paging.get('async_terminal_snapshot_bytes', 0)) if async_parking else 0
++kv_budget = int(paging.get('kv_bytes_per_rank', 4294967296))
++if async_parking and not 0 < terminal_budget < kv_budget:
++    raise ValueError('Async terminal reservation must fit inside the KV memory budget')
++kv_budget -= terminal_budget
++args += ['--kernel-config', '{"enable_flashinfer_autotune":false}', '--kv-cache-memory', str(kv_budget), '--kv-transfer-config', json.dumps({
+  'kv_connector':'GB10AlignedOffloadingConnector',
+  'kv_connector_module_path':'vllm.distributed.kv_transfer.kv_connector.v1.gb10_aligned_offloading_connector',
+  'kv_role':'kv_both','kv_connector_extra_config':{
+@@ -283,9 +289,12 @@
+   'disk_write_policy':paging.get('disk_write_policy','eager'),
+   'memory_completion_cache':paging.get('memory_completion_cache',False),
+   'native_completion_cache':paging.get('native_completion_cache',False),
++  'async_terminal_snapshot_bytes':paging.get('async_terminal_snapshot_bytes',0),
+   'parking_save_timeout_seconds':paging.get('save_timeout_seconds',300),
+   'blocks_per_chunk':1,'offload_prompt_only':False}})]
+-args += ['--no-async-scheduling', '--scheduler-cls', 'vllm.v1.core.sched.gb10_parking_scheduler.GB10ParkingScheduler']
++args += ['--async-scheduling' if async_parking else '--no-async-scheduling', '--scheduler-cls',
++         'vllm.v1.core.sched.gb10_parking_scheduler.' +
++         ('GB10AsyncParkingScheduler' if async_parking else 'GB10ParkingScheduler')]
+ for filename, target in [('parking_scheduler_base.py','scheduler.py'),('parking_policy.py','parking_policy.py'),('gb10_parking_scheduler.py','gb10_parking_scheduler.py')]:
+     mount(root/'files/paging'/filename, f'{pkg}/v1/core/sched/{target}')
+ for relative, source in runtime_overrides.items():

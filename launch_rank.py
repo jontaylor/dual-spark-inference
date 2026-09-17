@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Launch a pinned NVIDIA NVFP4 rank with the same-process request pager."""
 import json
+import hashlib
 from runtime_config import load_config, model_snapshot, resolve_path
 import subprocess
 import sys
@@ -12,7 +13,8 @@ rank = int(sys.argv[1])
 assert rank in (0,1)
 assert cfg['model_id'] == 'nvidia/Qwen3.8-Flash-Next-NVFP4'
 assert cfg['kv_cache_dtype'] == 'bfloat16'
-assert cfg['tensor_parallel_size'] == 2 and cfg['expert_parallel'] and cfg['mtp_tokens'] == 3
+assert cfg['tensor_parallel_size'] == 2 and cfg['expert_parallel']
+assert isinstance(cfg['mtp_tokens'], int) and cfg['mtp_tokens'] >= 0
 snapshot = (resolve_path(cfg['paths']['hf_cache'], root) / ('models--' + cfg['model_id'].replace('/', '--')) / 'snapshots')/cfg['revision']
 source_config = json.loads((snapshot/'config.json').read_text())
 assert source_config['quantization_config']['quant_method'] == 'modelopt'
@@ -45,8 +47,19 @@ verify_runtime(cfg, root, rank)
 cmd=['docker','run','--name',name,'--gpus','all','--network','host','--ipc','host',
      '--cap-add','SYS_NICE','--ulimit','memlock=-1','--ulimit','stack=67108864',
      '--device','/dev/infiniband:/dev/infiniband','--entrypoint','python3']
+runtime_overrides = cfg.get('runtime_overrides', {})
+mounted_destinations = set()
 def mount(src,dest):
+    relative = dest.removeprefix(pkg + '/') if dest.startswith(pkg + '/') else None
+    if relative in runtime_overrides:
+        src = resolve_path(runtime_overrides[relative], root)
+        expected = cfg.get('runtime_override_sha256', {}).get(relative)
+        if not expected or hashlib.sha256(Path(src).read_bytes()).hexdigest() != expected:
+            raise RuntimeError(f'Unverified runtime override: {relative}')
     assert Path(src).exists(), src
+    if dest in mounted_destinations:
+        raise RuntimeError(f'Duplicate mount destination: {dest}')
+    mounted_destinations.add(dest)
     cmd.extend(['-v',f'{src}:{dest}:ro'])
 model_path = '/model-store/snapshots/' + cfg['revision']
 mount(snapshot.parent.parent,'/model-store')
@@ -55,6 +68,7 @@ mount(root/'files/paging/model_runner.py', f'{pkg}/v1/worker/gpu/model_runner.py
 mount(root/'files/paging/rank_local_disk.py', f'{pkg}/v1/kv_offload/rank_local_disk.py')
 mount(root/'container_entry.py','/opt/container_entry.py')
 mount(root/'files/paging/aligned_connector.py', f'{pkg}/distributed/kv_transfer/kv_connector/v1/gb10_aligned_offloading_connector.py')
+mount(root/'files/paging/offloading_scheduler.py', f'{pkg}/distributed/kv_transfer/kv_connector/v1/offloading/scheduler.py')
 cmd.extend(['-v', str(resolve_path(cfg['kv_paging']['disk_root'], root))+':/kv-disk'])
 mount(Path(__file__).resolve().parent/'files/modelopt_patched.py', f'{pkg}/model_executor/layers/quantization/modelopt.py')
 if not cfg.get('server_in_image'):
@@ -80,6 +94,18 @@ env={
 if 'enable_roce_allreduce' in cfg:
     assert isinstance(cfg['enable_roce_allreduce'], bool)
     env['VLLM_ENABLE_ROCE_ALLREDUCE'] = str(int(cfg['enable_roce_allreduce']))
+if cfg.get('speculative_plugin_path'):
+    plugin = resolve_path(cfg['speculative_plugin_path'], root)
+    for relative, expected in cfg['speculative_plugin_sha256'].items():
+        if hashlib.sha256((plugin / relative).read_bytes()).hexdigest() != expected:
+            raise RuntimeError(f'Unverified speculative plugin file: {relative}')
+    mount(plugin, '/opt/speculative-plugin')
+    image_env = json.loads(subprocess.check_output(
+        ['docker', 'image', 'inspect', cfg['image'], '--format', '{{json .Config.Env}}'], text=True))
+    prior_pythonpath = next((v.split('=', 1)[1] for v in image_env if v.startswith('PYTHONPATH=')), '')
+    env['PYTHONPATH'] = '/opt/speculative-plugin' + (':' + prior_pythonpath if prior_pythonpath else '')
+if cfg.get('draft_model_path'):
+    mount(resolve_path(cfg['draft_model_path'], root), '/speculative-draft')
 opts = cfg.get('optimizations', {})
 if opts.get('kv_cache_accounting'):
     env['GB10_KV_ACCOUNTING'] = '1'
@@ -132,10 +158,25 @@ args=[model_path,'--served-model-name',*cfg['served_names'],
  '--max-model-len',str(cfg['max_model_len']),'--kv-cache-dtype',cfg['kv_cache_dtype'],
  '--load-format','safetensors','--safetensors-load-strategy','lazy','--enable-chunked-prefill',
  '--reasoning-parser','qwen3','--enable-auto-tool-choice','--tool-call-parser','qwen3_coder',
- '--mm-encoder-tp-mode',cfg['mm_encoder_tp_mode'],
- '--speculative-config',json.dumps({'method':'mtp','num_speculative_tokens':cfg['mtp_tokens'],
-     'use_local_argmax_reduction':bool(opts.get('draft_local_argmax', False))})]
+ '--mm-encoder-tp-mode',cfg['mm_encoder_tp_mode']]
+if cfg['mtp_tokens']:
+    speculative = {'method': cfg.get('speculative_method', 'mtp'), 'num_speculative_tokens': cfg['mtp_tokens'],
+                   'use_local_argmax_reduction': bool(opts.get('draft_local_argmax', False))}
+    for key in ('draft_sample_method', 'num_speculative_tokens_per_batch_size',
+                'index_share_for_mtp_iteration'):
+        if key in cfg:
+            speculative[key] = cfg[key]
+    if cfg.get('draft_model_path'):
+        speculative['model'] = '/speculative-draft'
+        speculative['draft_tensor_parallel_size'] = cfg.get('draft_tensor_parallel_size', 2)
+        speculative['quantization'] = cfg.get('draft_quantization')
+        if cfg.get('draft_attention_backend'):
+            speculative['attention_backend'] = cfg['draft_attention_backend']
+    args += ['--speculative-config', json.dumps(speculative)]
 # Explicit policies keep changed defaults from altering this A/B test.
+if cfg.get('block_size') is not None:
+    assert isinstance(cfg['block_size'], int) and cfg['block_size'] > 0
+    args += ['--block-size', str(cfg['block_size'])]
 if cfg.get('mamba_cache_mode'):
     args += ['--mamba-cache-mode', cfg['mamba_cache_mode']]
 if 'prefix_cache_retention_interval' in cfg:
@@ -160,6 +201,8 @@ elif cfg['graph_mode']=='full_decode':
     args+=['--compilation-config',json.dumps({'mode':0,'cudagraph_mode':'FULL_DECODE_ONLY',
         'cudagraph_capture_sizes':cfg.get('cudagraph_capture_sizes', [4*s for s in range(1,cfg['max_num_seqs']+1)])})]
 else:raise ValueError('Unknown graph mode')
+if rank == 0 and cfg.get('trust_request_chat_template', False):
+    args += ['--trust-request-chat-template']
 if rank:args+=['--headless']
 else:args+=['--host','0.0.0.0','--port',str(cfg['port'])]
 paging = cfg.get('kv_paging', {})
@@ -173,10 +216,19 @@ args += ['--kernel-config', '{"enable_flashinfer_autotune":false}', '--kv-cache-
   **({'parking_block_budget': paging['block_budget']} if 'block_budget' in paging else {}),
   'parking_test_after_generated_tokens':paging.get('force_after_generated', 0),
   'completion_checkpoints':paging.get('completion_checkpoints',False),
+  'disk_write_policy':paging.get('disk_write_policy','eager'),
+  'memory_completion_cache':paging.get('memory_completion_cache',False),
+  'parking_save_timeout_seconds':paging.get('save_timeout_seconds',300),
   'blocks_per_chunk':1,'offload_prompt_only':False}})]
 args += ['--no-async-scheduling', '--scheduler-cls', 'vllm.v1.core.sched.gb10_parking_scheduler.GB10ParkingScheduler']
 for filename, target in [('parking_scheduler_base.py','scheduler.py'),('parking_policy.py','parking_policy.py'),('gb10_parking_scheduler.py','gb10_parking_scheduler.py')]:
     mount(root/'files/paging'/filename, f'{pkg}/v1/core/sched/{target}')
+for relative, source in runtime_overrides.items():
+    if relative.startswith('/') or '..' in Path(relative).parts:
+        raise ValueError(f'Invalid runtime override path: {relative}')
+    destination = f'{pkg}/{relative}'
+    if destination not in mounted_destinations:
+        mount(resolve_path(source, root), destination)
 cmd += [cfg['image'],'/opt/container_entry.py',*args]
 print(json.dumps({'rank':rank,'image':cfg['image'],'model':cfg['model_id'],'revision':cfg['revision'],
                   'port':cfg['port'],'ple':'local_nvme_mmap','args':args}),flush=True)
